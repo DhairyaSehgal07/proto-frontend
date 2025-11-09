@@ -37,6 +37,9 @@ All notable changes to this project will be documented in this file. See [standa
 - Example test suite demonstrating Jest usage with React Testing Library
 - Jest integration with pre-push Git hook
 - Standard-version for automated version management and changelog generation
+- Integrated custom fonts via app/fonts.ts for consistent typography across the app
+- Set up ShadCN UI with Tailwind and configured global styles and theme support
+- Created a basic sign-in form using ShadCN UI components (Button, Input, Form, etc.)
 - CHANGELOG.md for tracking version history
 
 ### Changed

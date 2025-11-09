@@ -1,11 +1,24 @@
-/** @type {import('jest').Config} */
-export default {
-  preset: 'ts-jest/presets/default-esm',
+import type { Config } from 'jest';
+import nextJest from 'next/jest.js';
+
+const createJestConfig = nextJest({
+  // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
+  dir: './',
+});
+
+// Add any custom config to be passed to Jest
+const config: Config = {
+  coverageProvider: 'v8',
   testEnvironment: 'jsdom',
-  extensionsToTreatAsEsm: ['.ts', '.tsx'],
-  rootDir: '.',
+  // Add more setup options before each test is run
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  // Test match patterns
   testMatch: ['**/__tests__/**/*.test.{ts,tsx}', '**/?(*.)+(spec|test).{ts,tsx}'],
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  // Module name mapper for path aliases (matching tsconfig.json paths)
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+  // Coverage configuration
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
@@ -33,33 +46,11 @@ export default {
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-  },
-  transform: {
-    '^.+\\.tsx?$': [
-      'ts-jest',
-      {
-        useESM: true,
-        tsconfig: {
-          jsx: 'react-jsx',
-          module: 'ESNext',
-          moduleResolution: 'node',
-        },
-      },
-    ],
-    '^.+\\.js$': [
-      'ts-jest',
-      {
-        useESM: true,
-      },
-    ],
-  },
-  transformIgnorePatterns: ['node_modules/(?!(.*\\.mjs$))'],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testTimeout: 10000,
   maxWorkers: '50%',
   bail: false,
   errorOnDeprecated: true,
 };
+
+// createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
+export default createJestConfig(config);
