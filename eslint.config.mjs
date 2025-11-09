@@ -19,7 +19,7 @@ const eslintConfig = defineConfig([
     '**/coverage/**',
     '**/.husky/**',
     '**/.git/**',
-    'commitlint.config.js',
+     'commitlint.config.mjs',
     'jest.config.js',
     'jest.setup.js',
   ]),
