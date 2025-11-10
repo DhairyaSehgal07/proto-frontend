@@ -4,10 +4,11 @@ import type { StoreAdminLoginInput, StoreAdminLoginResponse } from '@/types/stor
 import { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-
+import { useStore } from '@/store';
 export const useStoreAdminLogin = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { setAdminData, setLoading } = useStore();
 
   return useMutation<
     StoreAdminLoginResponse,
@@ -16,15 +17,33 @@ export const useStoreAdminLogin = () => {
   >({
     mutationKey: ['store-admin', 'login'],
     mutationFn: async (payload) => {
+      setLoading(true); // 🌀 start loading in global store
       const { data } = await baseApi.post('/store-admin/login', payload);
       return data;
     },
     onSuccess: (data) => {
+      if (!data.data) {
+        setLoading(false);
+        toast.error('Login failed: No data received');
+        return;
+      }
+
+      const { admin, coldStorage } = data.data;
+
+      // ✅ Save login data globally
+      setAdminData(admin, coldStorage);
+      setLoading(false);
+
       toast.success(data.message || 'Logged in successfully!');
+
+      // Optional: invalidate profile queries (if used elsewhere)
       queryClient.invalidateQueries({ queryKey: ['store-admin', 'profile'] });
-      router.push('/dashboard');
+
+      // ✅ Navigate to dashboard
+      router.push('/store-admin/daybook');
     },
     onError: (error) => {
+      setLoading(false);
       const errorMessage =
         error.response?.data?.message ||
         (error.response?.data as { message?: string })?.message ||

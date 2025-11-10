@@ -14,7 +14,7 @@ export function proxy(request: NextRequest) {
 
   // If user has token and tries to access login/register, redirect to dashboard
   if (token && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/store-admin/daybook', request.url));
   }
 
   // If user doesn't have token and tries to access protected routes, redirect to login
