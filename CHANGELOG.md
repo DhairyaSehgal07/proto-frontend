@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.3](///compare/v0.1.2...v0.1.3) (2025-11-10)
+
+### Features
+
+- implement token refresh and migrate to cookie-based authentication 2e6b56f
+
 ### [0.1.2](///compare/v0.1.1...v0.1.2) (2025-11-09)
 
 ### Features
