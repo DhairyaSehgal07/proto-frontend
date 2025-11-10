@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { Eye, EyeOff } from 'lucide-react';
-import { storeAdminSignInSchema } from '@/schemas/storeAdminSignIn';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { storeAdminLoginSchema } from '@/schemas/storeAdminLogin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -18,23 +18,26 @@ import {
 } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { z } from 'zod';
+import { useStoreAdminLogin } from '@/services/base/store-admin/auth/useStoreAdminLogin';
 
-type StoreAdminSignInForm = z.infer<typeof storeAdminSignInSchema>;
+type StoreAdminLoginForm = z.infer<typeof storeAdminLoginSchema>;
 
-export function SignIn() {
+export function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
-  const form = useForm<StoreAdminSignInForm>({
-    resolver: zodResolver(storeAdminSignInSchema),
+  const form = useForm<StoreAdminLoginForm>({
+    resolver: zodResolver(storeAdminLoginSchema),
     defaultValues: {
       mobileNumber: '',
       password: '',
+      isMobile: false,
     },
   });
 
-  const onSubmit = async (data: StoreAdminSignInForm) => {
-    // Form submission logic will be added later
-    console.log('Form data:', data);
+  const loginMutation = useStoreAdminLogin();
+
+  const onSubmit = async (data: StoreAdminLoginForm) => {
+    loginMutation.mutate(data);
   };
 
   return (
@@ -54,7 +57,12 @@ export function SignIn() {
                   <FormItem>
                     <FormLabel>Mobile Number</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter 10-digit mobile number" type="tel" {...field} />
+                      <Input
+                        placeholder="Enter 10-digit mobile number"
+                        type="tel"
+                        disabled={loginMutation.isPending}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -72,6 +80,7 @@ export function SignIn() {
                         <Input
                           placeholder="Enter your password"
                           type={showPassword ? 'text' : 'password'}
+                          disabled={loginMutation.isPending}
                           {...field}
                           className="pr-10"
                         />
@@ -95,8 +104,15 @@ export function SignIn() {
                 )}
               />
 
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+                {loginMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  'Login'
+                )}
               </Button>
             </form>
           </Form>
@@ -104,8 +120,8 @@ export function SignIn() {
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               Don&apos;t have an account?{' '}
-              <Link href="/sign-up" className="text-primary hover:underline font-medium">
-                Sign up
+              <Link href="/register" className="text-primary hover:underline font-medium">
+                Register
               </Link>
             </p>
           </div>

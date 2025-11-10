@@ -6,7 +6,7 @@ interface FormLayoutProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
-  showSignInLink?: boolean;
+  showLoginLink?: boolean;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
 }
@@ -15,7 +15,7 @@ export const FormLayout = ({
   title,
   subtitle,
   children,
-  showSignInLink = true,
+  showLoginLink = true,
   maxWidth = 'md',
   className = '',
 }: FormLayoutProps) => {
@@ -63,16 +63,16 @@ export const FormLayout = ({
           {/* Form Content */}
           <div className="space-y-6">{children}</div>
 
-          {/* Sign In Link */}
-          {showSignInLink && (
+          {/* Login Link */}
+          {showLoginLink && (
             <div className="text-center mt-8 pt-6 border-t border-green-200/50 dark:border-gray-600/50">
               <p className="text-sm text-gray-600/80 dark:text-gray-300/80">
                 Already have an account?{' '}
                 <Link
-                  href="/sign-in"
+                  href="/login"
                   className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-medium transition-colors duration-200 hover:underline"
                 >
-                  Sign in
+                  Login
                 </Link>
               </p>
             </div>

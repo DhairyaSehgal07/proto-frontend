@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
 import { getFontVariables, getPrimaryFont } from './fontConfig';
+import Providers from '@/context/providers';
 
 export const metadata: Metadata = {
   title: 'Coldop-dev',
@@ -16,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${getFontVariables()} ${getPrimaryFont()} antialiased`}>
-        {children}
+        <Providers>{children}</Providers>
         <Toaster position="bottom-right" />
       </body>
     </html>
