@@ -1,59 +1,26 @@
-import { serverFetchJson } from '@/lib/server-fetch';
-import { DaybookApiResponse, DaybookOrder } from '@/types/daybook';
-import ReceiptVoucherCard from '@/components/receipt-voucher-card';
-import DeliveryVoucherCard from '@/components/delivery-voucher-card';
+// app/daybook/page.tsx
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
+import getQueryClient from '@/lib/get-query-client';
+import { daybookKeys } from '@/services/base/store-admin/auth/daybook-keys';
+import { baseApi } from '@/lib/axios';
+import DaybookPage from '@/components/daybook/daybook';
 
-async function page() {
-  let orders: DaybookOrder[] | null = null;
+export default async function Page() {
+  const queryClient = getQueryClient();
 
-  try {
-    // Use the reusable serverFetchJson utility
-    // It automatically handles cookies, refresh tokens, and redirects
-    const response = await serverFetchJson<DaybookApiResponse>('/store-admin/daybook');
-    if (!response.success) {
-      throw new Error(response.message);
-    }
-    orders = response.data;
-  } catch (err) {
-    // Re-throw redirect errors so Next.js can handle them properly
-    if (
-      err instanceof Error &&
-      'digest' in err &&
-      typeof err.digest === 'string' &&
-      err.digest.startsWith('NEXT_REDIRECT')
-    ) {
-      throw err;
-    }
-    console.error('[Server] Fetch error:', err);
-  }
-
-  if (!orders || orders.length === 0) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">No orders found.</p>
-      </div>
-    );
-  }
+  await queryClient.prefetchQuery({
+    queryKey: daybookKeys.list({ type: 'all', sortBy: 'latest', page: 1, limit: 10 }),
+    queryFn: async () => {
+      const { data } = await baseApi.get('/store-admin/daybook', {
+        params: { type: 'all', sortBy: 'latest', page: 1, limit: 10 },
+      });
+      return data;
+    },
+  });
 
   return (
-    <>
-      <h1 className="text-xl">
-        send createdBy in incoming and incoming order voucher number in outgoing
-      </h1>
-      <pre>{JSON.stringify(orders, null, 2)}</pre>
-      {orders.map((voucher: DaybookOrder) => (
-        <div key={voucher.id} className="mb-4">
-          {voucher.gatePassType === 'RECEIPT' ? (
-            <ReceiptVoucherCard data={voucher} />
-          ) : voucher.gatePassType === 'DELIVERY' ? (
-            <DeliveryVoucherCard data={voucher} />
-          ) : (
-            <p>Unknown voucher type: {voucher.gatePassType}</p>
-          )}
-        </div>
-      ))}
-    </>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <DaybookPage />
+    </HydrationBoundary>
   );
 }
-
-export default page;

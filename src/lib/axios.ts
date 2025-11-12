@@ -1,9 +1,10 @@
 // src/lib/axios.ts
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import Cookies from 'js-cookie';
 import { getCookie } from './utils';
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:3000';
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000';
 
 // ✅ Create base Axios instance
 export const baseApi: AxiosInstance = axios.create({
@@ -23,12 +24,12 @@ let failedQueue: Array<{
   reject: (error?: unknown) => void;
 }> = [];
 
-const processQueue = (error: AxiosError | null, token: string | null = null) => {
+const processQueue = (error: AxiosError | null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve();
     }
   });
 
@@ -67,12 +68,8 @@ baseApi.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then(() => {
-            return baseApi(originalRequest);
-          })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
+          .then(() => baseApi(originalRequest))
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
@@ -87,14 +84,7 @@ baseApi.interceptors.response.use(
         }
 
         // Attempt to refresh the token
-        const refreshResponse = await axios.post<{
-          success: boolean;
-          message: string;
-          data: {
-            accessToken: string;
-            refreshToken: string;
-          };
-        }>(
+        await axios.post(
           `${BASE_URL}/api/v1/base/store-admin/refresh`,
           { refreshToken },
           {
@@ -106,18 +96,18 @@ baseApi.interceptors.response.use(
         );
 
         // Tokens are set as cookies by the server, so we just need to retry the request
-        processQueue(null, refreshResponse.data.data.accessToken);
+        processQueue(null);
 
         // Retry the original request
         return baseApi(originalRequest);
       } catch (refreshError) {
         // Refresh failed, clear everything and redirect to login
-        processQueue(refreshError as AxiosError, null);
+        processQueue(refreshError as AxiosError);
 
         // Clear any remaining cookies (they should be cleared by server, but just in case)
-        if (typeof document !== 'undefined') {
-          document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-          document.cookie = 'refreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        if (typeof window !== 'undefined') {
+          Cookies.remove('accessToken', { path: '/' });
+          Cookies.remove('refreshToken', { path: '/' });
         }
 
         // Prevent infinite redirect loop
@@ -138,10 +128,24 @@ baseApi.interceptors.response.use(
 
     // Handle Network or Server Errors
     if (!error.response) {
-      console.error('[Axios] Network error or server unavailable');
+      // Don't log cancellation errors (expected behavior)
+      if (error.code === 'ERR_CANCELED' || error.message === 'canceled') {
+        return Promise.reject(error);
+      }
+
+      // Provide more context about the failed request
+      const requestUrl = originalRequest?.url || 'unknown';
+      const requestMethod = originalRequest?.method?.toUpperCase() || 'UNKNOWN';
+      const errorMessage = error.message || 'Network error or server unavailable';
+
+      console.error(`[Axios] Network error: ${errorMessage}`, {
+        method: requestMethod,
+        url: requestUrl,
+        code: error.code,
+      });
     }
 
-    return Promise.reject(error.response?.data || { message: 'Something went wrong', status });
+    return Promise.reject(error);
   }
 );
 

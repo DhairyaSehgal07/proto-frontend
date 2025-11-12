@@ -98,13 +98,15 @@ async function fetchWithRefresh(
 
       console.warn('[Server Fetch] Token refresh successful, retrying original request...');
 
-      // Get updated tokens from cookies (they were set by the API route)
-      const updatedCookieStore = await cookies();
-      const newAccessToken = updatedCookieStore.get('accessToken')?.value;
-      const newRefreshToken = updatedCookieStore.get('refreshToken')?.value;
+      // Get tokens from refresh response body (API route returns them)
+      // Cookies are also set by the API route, but we need the tokens here immediately
+      const newAccessToken =
+        refreshData.data?.accessToken || (refreshData as { accessToken?: string }).accessToken;
+      const newRefreshToken =
+        refreshData.data?.refreshToken || (refreshData as { refreshToken?: string }).refreshToken;
 
       if (!newAccessToken) {
-        console.error('[Server Fetch] No accessToken found after refresh');
+        console.error('[Server Fetch] No accessToken in refresh response:', refreshData);
         redirect('/login');
       }
 

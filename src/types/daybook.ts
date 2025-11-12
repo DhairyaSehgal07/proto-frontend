@@ -2,6 +2,7 @@ export interface DaybookApiResponse {
   success: boolean;
   message: string;
   data: DaybookOrder[];
+  pagination: Pagination;
 }
 
 /**
@@ -24,6 +25,17 @@ export interface DaybookOrder {
   totalBags?: number; // present in outgoing
   totalWeight?: number; // present in outgoing
   createdBy?: CreatedBy; // present in outgoing
+}
+
+export interface Pagination {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextPage: number | null;
+  previousPage: number | null;
 }
 
 /**
