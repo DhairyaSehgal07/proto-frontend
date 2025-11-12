@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.2.0](///compare/v0.1.3...v0.2.0) (2025-11-12)
+
+### Features
+
+- add dashboard layout with sidebar and navbar, fix dark theme toggle af94c07
+- add daybook features, voucher cards, settings pages, and data table components b61fb1d
+
 ### [0.1.3](///compare/v0.1.2...v0.1.3) (2025-11-10)
 
 ### Features
