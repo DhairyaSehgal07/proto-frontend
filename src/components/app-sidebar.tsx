@@ -35,6 +35,13 @@ const navigationItems = [
     name: 'Settings',
     href: '/store-admin/settings',
     icon: Settings,
+    // 👇 all routes that should count as active
+    activePaths: [
+      '/store-admin/settings',
+      '/store-admin/settings/rbac',
+      '/store-admin/settings/profile',
+      '/store-admin/settings/preferences',
+    ],
   },
 ];
 
@@ -56,7 +63,11 @@ const AppSidebar = () => {
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => {
-                const isActive = pathname === item.href;
+                // ✅ Mark active if pathname matches item.href or one of its activePaths
+                const isActive =
+                  pathname === item.href ||
+                  item.activePaths?.some((path) => pathname.startsWith(path));
+
                 const Icon = item.icon;
 
                 return (
@@ -64,7 +75,7 @@ const AppSidebar = () => {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      variant={'coldop-variant'}
+                      variant="coldop-variant"
                       tooltip={item.name}
                     >
                       <Link href={item.href}>

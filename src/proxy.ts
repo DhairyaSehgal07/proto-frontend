@@ -7,7 +7,14 @@ export function proxy(request: NextRequest) {
 
   // Define your route patterns`
   const authRoutes = ['/login', '/register'];
-  const protectedRoutes = ['/dashboard', '/profile', '/settings'];
+  const protectedRoutes = [
+    '/dashboard',
+    '/profile',
+    '/settings',
+    'store-admin/settings/rbac',
+    'store-admin/settings/preferences',
+    'store-admin/settings/profile',
+  ];
 
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
