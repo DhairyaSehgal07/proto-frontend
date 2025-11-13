@@ -25,7 +25,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onSortFilterChange,
 }) => {
   return (
-    <div className="max-w-7xl pb-8 space-y-4">
+    <div className="pb-8 space-y-4">
       <Card className="w-full">
         <CardContent>
           <div className="flex items-center gap-3">

@@ -39,8 +39,12 @@ const processQueue = (error: AxiosError | null) => {
 // ✅ Request Interceptor
 baseApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Cookies are automatically sent with withCredentials: true
-    // No need to manually set Authorization header for cookie-based auth
+    // Get access token from cookie and set Authorization header
+    // Backend expects Authorization header even though we also send cookies
+    const accessToken = getCookie('accessToken');
+    if (accessToken && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
     return config;
   },
   (error) => {
@@ -83,10 +87,11 @@ baseApi.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
-        // Attempt to refresh the token
-        await axios.post(
-          `${BASE_URL}/api/v1/base/store-admin/refresh`,
-          { refreshToken },
+        // Call Next.js API route for token refresh (handles cookie management)
+        // This route proxies to the backend and sets cookies properly
+        const refreshResponse = await axios.post(
+          '/api/refresh',
+          {},
           {
             withCredentials: true,
             headers: {
@@ -95,10 +100,20 @@ baseApi.interceptors.response.use(
           }
         );
 
-        // Tokens are set as cookies by the server, so we just need to retry the request
+        // Verify refresh was successful
+        if (!refreshResponse.data?.success) {
+          throw new Error('Token refresh failed');
+        }
+
+        // Tokens are set as cookies by the API route, so we just need to retry the request
         processQueue(null);
 
-        // Retry the original request
+        // Clear the old Authorization header so the request interceptor can set the new one
+        if (originalRequest.headers) {
+          delete originalRequest.headers.Authorization;
+        }
+
+        // Retry the original request (request interceptor will add new Authorization header)
         return baseApi(originalRequest);
       } catch (refreshError) {
         // Refresh failed, clear everything and redirect to login

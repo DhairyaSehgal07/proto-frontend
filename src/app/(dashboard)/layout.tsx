@@ -8,7 +8,7 @@ export default async function StoreAdminLayout({ children }: { children: React.R
       <AppSidebar />
       <SidebarInset>
         <Navbar />
-        <div className="md:p-4">{children}</div>
+        <div className="mx-auto w-full max-w-7xl md:p-4">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

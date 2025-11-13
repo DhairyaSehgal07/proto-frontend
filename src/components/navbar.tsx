@@ -27,7 +27,6 @@ interface UserMenuProps {
 }
 
 // Extracted UserMenu for reuse
-// React Compiler handles memoization automatically
 function UserMenu({ admin, coldStorage }: UserMenuProps) {
   return (
     <DropdownMenuContent align="end" className="w-56">
@@ -54,14 +53,13 @@ function UserMenu({ admin, coldStorage }: UserMenuProps) {
   );
 }
 
-// React Compiler handles memoization automatically
 export default function Navbar() {
   const pathname = usePathname();
   const admin = useStore((state) => state.admin);
   const coldStorage = useStore((state) => state.coldStorage);
-  const isLoading = useStore((state) => state.isLoading);
+  const hasHydrated = useStore((state) => state._hasHydrated);
 
-  // Memoized page title - React Compiler will optimize this further if needed
+  // Memoized page title
   const formatted = useMemo(() => {
     const segments = pathname?.split('/').filter(Boolean) ?? [];
     const lastSegment = segments.at(-1) ?? '';
@@ -71,7 +69,8 @@ export default function Navbar() {
       .join(' ');
   }, [pathname]);
 
-  if (isLoading || !admin) {
+  // Show loading skeleton only during initial hydration or if no admin data
+  if (!hasHydrated || !admin) {
     return (
       <nav className="sticky top-0 z-40 bg-background shadow-sm border-b border-border">
         <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">

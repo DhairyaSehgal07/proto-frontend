@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, Users, BarChart3, Settings } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Settings, ChevronRight } from 'lucide-react';
+
 import {
   Sidebar,
+  SidebarHeader,
   SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
@@ -12,14 +14,19 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarHeader,
 } from '@/components/ui/sidebar';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
 const navigationItems = [
   {
     name: 'Daybook',
     href: '/store-admin/daybook',
     icon: BookOpen,
+    children: [
+      { name: 'Overview', href: '/store-admin/daybook' },
+      { name: 'Incoming', href: '/store-admin/incoming' },
+      { name: 'Outgoing', href: '/store-admin/outgoing' },
+    ],
   },
   {
     name: 'People',
@@ -35,7 +42,6 @@ const navigationItems = [
     name: 'Settings',
     href: '/store-admin/settings',
     icon: Settings,
-    // 👇 all routes that should count as active
     activePaths: [
       '/store-admin/settings',
       '/store-admin/settings/rbac',
@@ -57,18 +63,75 @@ const AppSidebar = () => {
           </h1>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+
           <SidebarGroupContent>
             <SidebarMenu>
               {navigationItems.map((item) => {
-                // ✅ Mark active if pathname matches item.href or one of its activePaths
+                const Icon = item.icon;
+
+                // ✅ Handle Daybook submenu
+                if (item.children) {
+                  const isActive =
+                    pathname === item.href ||
+                    item.children.some((c) => pathname.startsWith(c.href));
+
+                  const defaultOpen =
+                    pathname.startsWith('/store-admin/incoming') ||
+                    pathname.startsWith('/store-admin/outgoing') ||
+                    pathname === '/store-admin/daybook';
+
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <Collapsible defaultOpen={defaultOpen} className="group/collapsible">
+                        {/* Collapsible Trigger (Daybook main button) */}
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            variant="coldop-variant"
+                            tooltip={item.name}
+                            className="flex justify-between w-full"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              <span>{item.name}</span>
+                            </div>
+                            <ChevronRight
+                              className={`h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90`}
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+
+                        {/* Submenu (Incoming / Outgoing) */}
+                        <CollapsibleContent className="ml-6 mt-1 group-data-[collapsible=icon]:hidden">
+                          {item.children.map((child) => {
+                            const isChildActive = pathname === child.href;
+
+                            return (
+                              <SidebarMenuButton
+                                key={child.name}
+                                asChild
+                                isActive={isChildActive}
+                                size="sm"
+                                className="pl-6"
+                              >
+                                <Link href={child.href}>{child.name}</Link>
+                              </SidebarMenuButton>
+                            );
+                          })}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </SidebarMenuItem>
+                  );
+                }
+
+                // ✅ Regular sidebar items
                 const isActive =
                   pathname === item.href ||
                   item.activePaths?.some((path) => pathname.startsWith(path));
-
-                const Icon = item.icon;
 
                 return (
                   <SidebarMenuItem key={item.name}>
