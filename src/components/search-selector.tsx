@@ -27,6 +27,7 @@ interface SearchSelectorProps<T extends string> {
   className?: string;
   buttonClassName?: string;
   id?: string;
+  disabled?: boolean;
 }
 
 export function SearchSelector<T extends string>({
@@ -36,6 +37,7 @@ export function SearchSelector<T extends string>({
   className,
   buttonClassName,
   id,
+  disabled = false,
 }: SearchSelectorProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState<T | ''>('');
@@ -58,6 +60,7 @@ export function SearchSelector<T extends string>({
           role="combobox"
           aria-expanded={open}
           className={cn('w-[200px] justify-between', buttonClassName)}
+          disabled={disabled}
         >
           {selectedOption ? selectedOption.label : placeholder}
           <ChevronsUpDown className="opacity-50" />

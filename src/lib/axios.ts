@@ -17,33 +17,14 @@ export const baseApi: AxiosInstance = axios.create({
   timeout: 10000, // 10 seconds
 });
 
-// Track if we're currently refreshing to prevent infinite loops
-let isRefreshing = false;
-let failedQueue: Array<{
-  resolve: (value?: unknown) => void;
-  reject: (error?: unknown) => void;
-}> = [];
-
-const processQueue = (error: AxiosError | null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve();
-    }
-  });
-
-  failedQueue = [];
-};
-
 // ✅ Request Interceptor
 baseApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Get access token from cookie and set Authorization header
+    // Get JWT token from cookie and set Authorization header
     // Backend expects Authorization header even though we also send cookies
-    const accessToken = getCookie('accessToken');
-    if (accessToken && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+    const jwtToken = getCookie('jwt');
+    if (jwtToken && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${jwtToken}`;
     }
     return config;
   },
@@ -57,82 +38,17 @@ baseApi.interceptors.request.use(
 baseApi.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as InternalAxiosRequestConfig;
     const status = error.response?.status;
 
-    // Handle Unauthorized (401) - Attempt token refresh
-    if (
-      status === 401 &&
-      typeof window !== 'undefined' &&
-      originalRequest &&
-      !originalRequest._retry
-    ) {
-      if (isRefreshing) {
-        // If already refreshing, queue this request
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then(() => baseApi(originalRequest))
-          .catch((err) => Promise.reject(err));
-      }
+    // Handle Unauthorized (401) - Redirect to login
+    if (status === 401 && typeof window !== 'undefined') {
+      // Clear JWT cookie
+      Cookies.remove('jwt', { path: '/' });
 
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        // Get refresh token from cookie
-        const refreshToken = getCookie('refreshToken');
-
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        // Call Next.js API route for token refresh (handles cookie management)
-        // This route proxies to the backend and sets cookies properly
-        const refreshResponse = await axios.post(
-          '/api/refresh',
-          {},
-          {
-            withCredentials: true,
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        // Verify refresh was successful
-        if (!refreshResponse.data?.success) {
-          throw new Error('Token refresh failed');
-        }
-
-        // Tokens are set as cookies by the API route, so we just need to retry the request
-        processQueue(null);
-
-        // Clear the old Authorization header so the request interceptor can set the new one
-        if (originalRequest.headers) {
-          delete originalRequest.headers.Authorization;
-        }
-
-        // Retry the original request (request interceptor will add new Authorization header)
-        return baseApi(originalRequest);
-      } catch (refreshError) {
-        // Refresh failed, clear everything and redirect to login
-        processQueue(refreshError as AxiosError);
-
-        // Clear any remaining cookies (they should be cleared by server, but just in case)
-        if (typeof window !== 'undefined') {
-          Cookies.remove('accessToken', { path: '/' });
-          Cookies.remove('refreshToken', { path: '/' });
-        }
-
-        // Prevent infinite redirect loop
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
+      // Only redirect if we're not already on the login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
       }
     }
 
