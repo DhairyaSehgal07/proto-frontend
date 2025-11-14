@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.3.0](///compare/v0.2.0...v0.3.0) (2025-11-14)
+
+### Features
+
+- add commodity selector, zustand page, and form handlers hook ff6d587
+- add forms components and UI enhancements 28715a1
+- implement daybook page with filtering, search, and pagination 630b905
+
 ## [0.2.0](///compare/v0.1.3...v0.2.0) (2025-11-12)
 
 ### Features
