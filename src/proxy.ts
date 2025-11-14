@@ -1,4 +1,4 @@
-// src/proxy.ts
+// proxy.ts (place in root of your Next.js project, same level as app/)
 import { NextResponse, NextRequest } from 'next/server';
 
 const BASE_URL =
@@ -6,76 +6,113 @@ const BASE_URL =
 
 export async function proxy(request: NextRequest) {
   const url = new URL(request.url);
+  const jwtToken = request.cookies.get('jwt')?.value;
 
-  // 🧠 Avoid infinite loop: don't proxy Next.js API routes
+  // 🔒 AUTH REDIRECT LOGIC
+  // If user has JWT and tries to access /login, redirect to dashboard
+  if (jwtToken && url.pathname === '/login') {
+    return NextResponse.redirect(new URL('/store-admin/daybook', request.url));
+  }
+
+  // If user has NO JWT and tries to access protected routes, redirect to login
+  if (!jwtToken && url.pathname.startsWith('/store-admin')) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // 🔄 PROXY LOGIC for API routes
+  // Only proxy paths starting with /api/v1/base
   if (!url.pathname.startsWith('/api/v1/base')) {
     return NextResponse.next();
   }
 
-  const jwtToken = request.cookies.get('jwt')?.value;
-
   // Get request body if it exists
-  let body: string | undefined;
-  if (request.body) {
+  let body: BodyInit | null = null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
     try {
-      const clonedRequest = request.clone();
-      body = await clonedRequest.text();
-    } catch {
-      // If body is already consumed, try to get it from the request
-      body = undefined;
+      // Use arrayBuffer instead of text to handle binary data
+      const buffer = await request.arrayBuffer();
+      body = buffer.byteLength > 0 ? buffer : null;
+    } catch (error) {
+      console.error('Error reading request body:', error);
+      body = null;
     }
   }
 
   const targetUrl = `${BASE_URL}${url.pathname}${url.search}`;
 
-  // Build headers
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
-  };
+  // Build headers - forward most headers from original request
+  const headers = new Headers();
 
-  // Forward JWT cookie to backend
-  if (jwtToken) {
-    headers['Cookie'] = `jwt=${jwtToken}`;
-  }
-
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: body || undefined,
-    credentials: 'include',
-  });
-
-  // Convert fetch response to NextResponse
-  const responseText = await response.text();
-  const nextResponse = new NextResponse(responseText, {
-    status: response.status,
-    statusText: response.statusText,
-  });
-
-  // Forward response headers
-  response.headers.forEach((value, key) => {
-    // Skip headers that Next.js manages
-    if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(key.toLowerCase())) {
-      nextResponse.headers.set(key, value);
+  // Copy relevant headers from original request
+  request.headers.forEach((value, key) => {
+    // Skip host and connection headers
+    if (!['host', 'connection', 'content-length'].includes(key.toLowerCase())) {
+      headers.set(key, value);
     }
   });
 
-  // Forward Set-Cookie headers from backend (for JWT cookie)
-  const setCookieHeaders = response.headers.getSetCookie();
-  if (setCookieHeaders && setCookieHeaders.length > 0) {
-    setCookieHeaders.forEach((cookie) => {
-      const [nameValue] = cookie.split(';');
+  // Add/override authentication headers
+  if (jwtToken) {
+    headers.set('Authorization', `Bearer ${jwtToken}`);
+    headers.set('Cookie', `jwt=${jwtToken}`);
+  }
+
+  // Ensure Content-Type is set for JSON requests
+  if (!headers.has('Content-Type') && body) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  try {
+    // Make the proxy request
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: body,
+      credentials: 'include',
+      // Important: don't follow redirects automatically
+      redirect: 'manual',
+    });
+
+    // Get response body
+    const responseBody = await response.arrayBuffer();
+
+    // Create NextResponse with the body
+    const nextResponse = new NextResponse(responseBody, {
+      status: response.status,
+      statusText: response.statusText,
+    });
+
+    // Forward response headers (except problematic ones)
+    response.headers.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (
+        !['content-encoding', 'content-length', 'transfer-encoding', 'set-cookie'].includes(
+          lowerKey
+        )
+      ) {
+        nextResponse.headers.set(key, value);
+      }
+    });
+
+    // Handle Set-Cookie headers specially
+    const setCookieHeaders = response.headers.getSetCookie?.() || [];
+
+    setCookieHeaders.forEach((cookieString) => {
+      // Parse the cookie
+      const parts = cookieString.split(';').map((p) => p.trim());
+      const [nameValue] = parts;
       const [name, ...valueParts] = nameValue.split('=');
       const value = valueParts.join('=');
 
-      if (name === 'jwt') {
+      // Only handle JWT cookie
+      if (name.trim() === 'jwt') {
         const cookieOptions: {
           httpOnly: boolean;
           secure: boolean;
-          sameSite: 'strict';
+          sameSite: 'strict' | 'lax' | 'none';
           path: string;
           maxAge?: number;
+          domain?: string;
         } = {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
@@ -83,23 +120,49 @@ export async function proxy(request: NextRequest) {
           path: '/',
         };
 
-        // Extract maxAge from cookie string if present
-        const maxAgeMatch = cookie.match(/Max-Age=(\d+)/);
-        if (maxAgeMatch) {
-          cookieOptions.maxAge = parseInt(maxAgeMatch[1], 10);
-        } else {
-          cookieOptions.maxAge = 7 * 24 * 60 * 60; // 7 days default
+        // Parse cookie attributes
+        parts.slice(1).forEach((part) => {
+          const [attr, attrValue] = part.split('=').map((s) => s.trim());
+          const attrLower = attr.toLowerCase();
+
+          if (attrLower === 'max-age' && attrValue) {
+            cookieOptions.maxAge = parseInt(attrValue, 10);
+          } else if (attrLower === 'domain' && attrValue) {
+            cookieOptions.domain = attrValue;
+          } else if (attrLower === 'samesite' && attrValue) {
+            cookieOptions.sameSite = attrValue.toLowerCase() as 'strict' | 'lax' | 'none';
+          }
+        });
+
+        // Set default maxAge if not present
+        if (!cookieOptions.maxAge) {
+          cookieOptions.maxAge = 7 * 24 * 60 * 60; // 7 days
         }
 
-        nextResponse.cookies.set(name, value, cookieOptions);
+        nextResponse.cookies.set(name.trim(), value, cookieOptions);
       }
     });
-  }
 
-  return nextResponse;
+    return nextResponse;
+  } catch (error) {
+    console.error('Proxy error:', error);
+    return NextResponse.json(
+      {
+        error: 'Proxy request failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 502 }
+    );
+  }
 }
 
-// Only proxy API routes to the backend
+// Configure which routes the proxy should run on
 export const config = {
-  matcher: '/api/v1/base/:path*',
+  matcher: [
+    // Auth routes - protect these routes with JWT checks
+    '/login',
+    '/store-admin/:path*',
+    // API proxy routes - forward these to backend
+    '/api/v1/base/:path*',
+  ],
 };

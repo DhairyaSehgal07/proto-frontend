@@ -80,6 +80,7 @@ const formatDate = (dateString: string): string => {
 
 function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  console.log('the data is: ', data);
 
   // Memoize toggle handler
   const toggleExpanded = useCallback(() => {
@@ -179,6 +180,7 @@ function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
 
   return (
     <Card className="overflow-hidden">
+      {/* <>{JSON.stringify(data, null, 2)}</> */}
       <CardHeader className="pb-4 sm:pb-6">
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4 mb-5 sm:mb-6">

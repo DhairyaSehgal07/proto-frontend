@@ -29,6 +29,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useStore } from '@/store';
 import { Plus } from 'lucide-react';
 import OrderNumber from '@/components/forms/order-number';
+import { CommoditySelector } from '@/components/forms/commodity-selector';
 
 interface VarietyData {
   id: string;
@@ -239,6 +240,7 @@ export default function IncomingOrderPage() {
       description: 'Farmer details, varieties, quantities and location information.',
       content: (
         <div className={cn('space-y-8', isNullVoucher && 'pointer-events-none opacity-50')}>
+          <CommoditySelector />
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-4">

@@ -75,8 +75,12 @@ export function LocationInputSection({
 
   // Check if first bag size is completely filled (for Apply to All button)
   const firstSize = sizes[0];
-  const firstSizeValues = firstSize
-    ? locationValues[firstSize]
+  const firstSizeValues: LocationValues = firstSize
+    ? {
+        chamber: locationValues[firstSize]?.chamber ?? '',
+        floor: locationValues[firstSize]?.floor ?? '',
+        row: locationValues[firstSize]?.row ?? '',
+      }
     : { chamber: '', floor: '', row: '' };
   const isApplyToAllEnabled =
     showApplyToAll &&
@@ -106,7 +110,8 @@ export function LocationInputSection({
   const handleApplyToAll = () => {
     if (!firstSize || !isApplyToAllEnabled) return;
 
-    const firstValues = locationValues[firstSize];
+    // Use firstSizeValues which is already safely initialized
+    const firstValues = firstSizeValues;
 
     if (onLocationChange) {
       // Controlled mode: call onLocationChange for all sizes

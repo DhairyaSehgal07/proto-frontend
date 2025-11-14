@@ -7,15 +7,29 @@ export interface ColdStorage {
   isPaid: boolean;
   isActive: boolean;
   plan: string;
+
   preferences: {
-    bagSizes: string[];
-    commodities: string[];
+    commodities: {
+      name: string;
+      sizes: string[];
+    }[];
+    varieties: string[];
     generation: string | null;
     rouging: string | null;
     tuberType: string | null;
     grader: string | null;
   };
+
   createdAt: string;
   updatedAt: string;
   imageUrl: string | null;
+}
+
+export interface ColdStoragePreferences {
+  bagSizes: string[];
+  commodities: string[];
+  generation: string | null;
+  rouging: string | null;
+  tuberType: string | null;
+  grader: string | null;
 }
