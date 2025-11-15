@@ -10,6 +10,7 @@ interface ToolbarProps {
   searchQuery: string;
   orderFilter: string;
   sortFilter: string;
+  preferencesId: string;
   onSearchChange: (query: string) => void;
   onOrderFilterChange: (filter: string) => void;
   onSortFilterChange: (filter: string) => void;
@@ -20,6 +21,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   searchQuery,
   orderFilter,
   sortFilter,
+  preferencesId,
   onSearchChange,
   onOrderFilterChange,
   onSortFilterChange,
@@ -61,7 +63,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
-                <ActionButtons />
+                <ActionButtons preferencesId={preferencesId} />
               </div>
             </div>
           </div>

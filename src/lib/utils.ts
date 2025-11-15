@@ -14,3 +14,8 @@ export function getCookie(name: string): string | null {
   if (typeof window === 'undefined') return null;
   return Cookies.get(name) || null;
 }
+
+export const capitalizeFirstLetter = (value: string) => {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+};

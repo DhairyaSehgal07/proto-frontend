@@ -8,17 +8,7 @@ export interface ColdStorage {
   isActive: boolean;
   plan: string;
 
-  preferences: {
-    commodities: {
-      name: string;
-      sizes: string[];
-    }[];
-    varieties: string[];
-    generation: string | null;
-    rouging: string | null;
-    tuberType: string | null;
-    grader: string | null;
-  };
+  preferences: ColdStoragePreferences; // ✅ CLEAN FIX
 
   createdAt: string;
   updatedAt: string;
@@ -26,10 +16,17 @@ export interface ColdStorage {
 }
 
 export interface ColdStoragePreferences {
-  bagSizes: string[];
-  commodities: string[];
+  id: string;
+  commodities: {
+    name: string;
+    sizes: string[];
+  }[];
   generation: string | null;
   rouging: string | null;
   tuberType: string | null;
   grader: string | null;
+
+  incoming: {
+    showCustomMarka: boolean;
+  };
 }

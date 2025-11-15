@@ -2,6 +2,8 @@
 
 import { SearchSelector } from '../search-selector';
 import { Label } from '@/components/ui/label';
+import { useStore } from '@/store';
+import { useMemo } from 'react';
 
 interface CommoditySelectorProps {
   id?: string;
@@ -14,6 +16,17 @@ export const CommoditySelector = ({
   onSelect,
   disabled = false,
 }: CommoditySelectorProps) => {
+  const { coldStorage } = useStore();
+
+  const commodityOptions = useMemo(() => {
+    return (
+      coldStorage?.preferences?.commodities?.map((commodity) => ({
+        label: commodity.name,
+        value: commodity.name,
+      })) || []
+    );
+  }, [coldStorage?.preferences?.commodities]);
+
   return (
     <div className="space-y-3">
       <Label htmlFor={id} className="text-base font-medium">
@@ -21,13 +34,7 @@ export const CommoditySelector = ({
       </Label>
       <SearchSelector
         id={id}
-        options={[
-          { label: 'Potato', value: 'potato' },
-          { label: 'Onion', value: 'onion' },
-          { label: 'Tomato', value: 'tomato' },
-          { label: 'Carrot', value: 'carrot' },
-          { label: 'Garlic', value: 'garlic' },
-        ]}
+        options={commodityOptions}
         placeholder="Select a commodity..."
         onSelect={onSelect}
         className="w-full sm:w-[320px]"

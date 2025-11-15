@@ -1,3 +1,4 @@
+import { Farmer } from './farmers';
 export interface DaybookApiResponse {
   success: boolean;
   message: string;
@@ -50,13 +51,6 @@ export interface FarmerStorageLink {
 /**
  * Represents a farmer entity
  */
-export interface Farmer {
-  id: string;
-  name: string;
-  address: string;
-  mobileNumber: string;
-  imageUrl: string | null;
-}
 
 /**
  * Represents a variety under a commodity

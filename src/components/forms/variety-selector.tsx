@@ -2,6 +2,8 @@
 
 import { SearchSelector } from '../search-selector';
 import { Label } from '@/components/ui/label';
+import { useStore } from '@/store';
+import { useMemo } from 'react';
 
 interface VarietySelectorProps {
   id?: string;
@@ -14,6 +16,16 @@ export const VarietySelector = ({
   onSelect,
   disabled = false,
 }: VarietySelectorProps) => {
+  const { coldStorage } = useStore();
+  const varietyOptions = useMemo(() => {
+    return (
+      coldStorage?.preferences?.varieties?.map((variety) => ({
+        label: variety,
+        value: variety,
+      })) || []
+    );
+  }, [coldStorage?.preferences?.varieties]);
+
   return (
     <div className="space-y-3">
       <Label htmlFor={id} className="text-base font-medium">
@@ -21,10 +33,7 @@ export const VarietySelector = ({
       </Label>
       <SearchSelector
         id={id}
-        options={[
-          { label: 'Example Variety 1', value: 'example1' },
-          { label: 'Example Variety 2', value: 'example2' },
-        ]}
+        options={varietyOptions}
         placeholder="Select a variety..."
         onSelect={onSelect}
         className="w-full sm:w-[320px]"

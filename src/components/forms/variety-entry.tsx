@@ -8,12 +8,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useEnterNavigation } from '@/hooks/use-enter-navigation';
+import { useStore } from '@/store';
 import { X } from 'lucide-react';
 
 interface VarietyEntryProps {
   index: number;
   varietyId: string;
   variety: string;
+  commodity?: string; // Selected commodity name
   onRemove: (id: string) => void;
   onVarietyChange: (id: string, variety: string) => void;
   onQuantityChange: (id: string, size: string, quantity: string) => void;
@@ -36,6 +38,7 @@ export function VarietyEntry({
   index,
   varietyId,
   variety, // Reserved for future use (controlled component)
+  commodity,
   onRemove,
   onVarietyChange,
   onQuantityChange,
@@ -51,6 +54,15 @@ export function VarietyEntry({
   // Suppress unused variable warning - variety is reserved for future controlled component use
   void variety;
   const containerRef = useRef<HTMLDivElement>(null);
+  const { coldStorage } = useStore();
+
+  // Get sizes based on selected commodity
+  const sizes = React.useMemo(() => {
+    if (!commodity) return [];
+    return coldStorage?.preferences?.commodities?.find((c) => c.name === commodity)?.sizes ?? [];
+  }, [coldStorage?.preferences?.commodities, commodity]);
+
+  const showCustomMarkafield = coldStorage?.preferences?.incoming?.showCustomMarka ?? false;
 
   const { onKeyDown } = useEnterNavigation({
     containerRef: containerRef as React.RefObject<HTMLElement>,
@@ -121,8 +133,9 @@ export function VarietyEntry({
             onQuantityChange={handleQuantityChange}
             onCustomMarkaChange={handleCustomMarkaChange}
             varietyId={varietyId}
+            sizes={sizes}
             disabled={disabled}
-            showCustomMarka={true}
+            showCustomMarka={showCustomMarkafield}
             inline={true}
             containerRef={containerRef as React.RefObject<HTMLElement>}
             onKeyDown={onKeyDown}
@@ -136,6 +149,7 @@ export function VarietyEntry({
             locations={locations}
             onLocationChange={handleLocationChange}
             varietyId={varietyId}
+            commodity={commodity}
             disabled={disabled}
             showApplyToAll={true}
             inline={true}

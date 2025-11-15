@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
-import { useStore } from '@/store';
 import { useEnterNavigation } from '@/hooks/use-enter-navigation';
 
 interface QuantityInputSectionProps {
@@ -15,6 +14,7 @@ interface QuantityInputSectionProps {
   onQuantityChange?: (size: string, quantity: string) => void;
   onCustomMarkaChange?: (size: string, customMarka: string) => void;
   varietyId?: string;
+  sizes?: string[]; // Sizes array passed from parent
   disabled?: boolean;
   showCustomMarka?: boolean;
   containerRef?: React.RefObject<HTMLElement>;
@@ -29,15 +29,13 @@ export function QuantityInputSection({
   onQuantityChange,
   onCustomMarkaChange,
   varietyId,
+  sizes = [],
   disabled = false,
   showCustomMarka = false,
   containerRef: externalContainerRef,
   onKeyDown: externalOnKeyDown,
   inline = false,
 }: QuantityInputSectionProps) {
-  const { coldStorage } = useStore();
-  const sizes = coldStorage?.preferences?.bagSizes || [];
-
   // Create a ref with the correct type for the Card component
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef =

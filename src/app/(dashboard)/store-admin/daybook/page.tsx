@@ -1,7 +1,7 @@
 // app/daybook/page.tsx
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import getQueryClient from '@/lib/get-query-client';
-import { daybookKeys } from '@/services/base/store-admin/auth/daybook-keys';
+import { daybookKeys } from '@/services/base/store-admin/functions/daybook-keys';
 import { baseApi } from '@/lib/axios';
 import DaybookPage from '@/components/daybook/daybook';
 

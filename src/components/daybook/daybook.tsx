@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef, startTransition } from 'react';
 import { useDebounceValue } from 'usehooks-ts';
-import { useDaybook } from '@/services/base/store-admin/auth/useDaybookOrders';
+import { useDaybook } from '@/services/base/store-admin/functions/useDaybookOrders';
+import { useStore } from '@/store';
 import Toolbar from '@/components/daybook/toolbar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,11 @@ export default function DaybookPage() {
   const [orderFilter, setOrderFilter] = useState('All Orders');
   const [sortFilter, setSortFilter] = useState('Latest First');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Get store values for receipt voucher cards
+  const { coldStorage, receiptVisibleColumns, setReceiptColumns } = useStore();
+
+  const preferencesId = coldStorage?.preferences.id || '';
 
   // Map filter strings to API values
   const typeFilter = useMemo(() => {
@@ -110,6 +116,7 @@ export default function DaybookPage() {
         searchQuery={searchQuery}
         orderFilter={orderFilter}
         sortFilter={sortFilter}
+        preferencesId={preferencesId}
         onSearchChange={handleSearchChange}
         onOrderFilterChange={handleOrderFilterChange}
         onSortFilterChange={handleSortFilterChange}
@@ -133,7 +140,13 @@ export default function DaybookPage() {
           <div className="mt-4 space-y-4">
             {data.data.map((voucher) =>
               voucher.type === 'incoming' ? (
-                <ReceiptVoucherCard key={voucher.id} data={voucher} />
+                <ReceiptVoucherCard
+                  key={voucher.id}
+                  data={voucher}
+                  coldStorage={coldStorage}
+                  receiptVisibleColumns={receiptVisibleColumns}
+                  setReceiptColumns={setReceiptColumns}
+                />
               ) : (
                 <DeliveryVoucherCard key={voucher.id} data={voucher} />
               )

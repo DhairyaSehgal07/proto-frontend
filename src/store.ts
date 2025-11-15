@@ -9,21 +9,60 @@ interface StoreState {
   coldStorage: ColdStorage | null;
   isLoading: boolean;
   _hasHydrated: boolean;
+
+  // Receipt voucher column preferences
+  receiptVisibleColumns: string[];
+  setReceiptColumns: (cols: string[]) => void;
+  toggleReceiptColumn: (col: string) => void;
+  resetReceiptColumns: () => void;
+
   setAdminData: (admin: Omit<StoreAdmin, 'password'>, coldStorage: ColdStorage) => void;
   clearAdminData: () => void;
   setLoading: (loading: boolean) => void;
   setHasHydrated: (state: boolean) => void;
 }
 
-type PersistedState = Pick<StoreState, 'admin' | 'coldStorage'>;
+type PersistedState = Pick<StoreState, 'admin' | 'coldStorage' | 'receiptVisibleColumns'>;
 
 export const useStore = create(
   persist<StoreState, [], [], PersistedState>(
-    (set) => ({
+    (set, get) => ({
       admin: null,
       coldStorage: null,
       isLoading: false,
       _hasHydrated: false,
+
+      /* -------------------------------
+          ADD THIS SLICE
+      -------------------------------- */
+      receiptVisibleColumns: ['variety', 'size', 'quantity', 'weight', 'chamber', 'floor', 'row'],
+
+      setReceiptColumns: (cols) => set({ receiptVisibleColumns: cols }),
+
+      toggleReceiptColumn: (col) => {
+        const current = get().receiptVisibleColumns;
+        set({
+          receiptVisibleColumns: current.includes(col)
+            ? current.filter((c) => c !== col)
+            : [...current, col],
+        });
+      },
+
+      resetReceiptColumns: () =>
+        set({
+          receiptVisibleColumns: [
+            'variety',
+            'size',
+            'quantity',
+            'weight',
+            'chamber',
+            'floor',
+            'row',
+          ],
+        }),
+
+      /* -------------------------------- */
+
       setAdminData: (admin, coldStorage) => set({ admin, coldStorage, isLoading: false }),
       clearAdminData: () => set({ admin: null, coldStorage: null }),
       setLoading: (loading) => set({ isLoading: loading }),
@@ -31,12 +70,11 @@ export const useStore = create(
     }),
     {
       name: 'store-storage',
-      // Only persist user data, not loading states
       partialize: (state): PersistedState => ({
         admin: state.admin,
         coldStorage: state.coldStorage,
+        receiptVisibleColumns: state.receiptVisibleColumns,
       }),
-      // Set hydration flag when store is rehydrated
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

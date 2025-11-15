@@ -56,13 +56,18 @@ export default function IncomingOrderPage() {
   const [submittedData, setSubmittedData] = useState<SubmittedFormData | null>(null);
   const [isNullVoucher, setIsNullVoucher] = useState(false);
   const [showNullVoucherDialog, setShowNullVoucherDialog] = useState(false);
+  const [selectedCommodity, setSelectedCommodity] = useState<string>('');
   const remarksRef = useRef<HTMLTextAreaElement>(null);
   const varietyIdCounterRef = useRef(1);
   const { coldStorage } = useStore();
-  const sizes = useMemo(
-    () => coldStorage?.preferences?.bagSizes || [],
-    [coldStorage?.preferences?.bagSizes]
-  );
+
+  // Get sizes based on selected commodity
+  const sizes = useMemo(() => {
+    if (!selectedCommodity) return [];
+    return (
+      coldStorage?.preferences?.commodities?.find((c) => c.name === selectedCommodity)?.sizes ?? []
+    );
+  }, [coldStorage?.preferences?.commodities, selectedCommodity]);
 
   // Generate a stable ID for variety entries
   const generateVarietyId = useCallback(() => {
@@ -162,6 +167,33 @@ export default function IncomingOrderPage() {
     []
   );
 
+  // Handle commodity selection and reset varieties
+  const handleCommodityChange = useCallback(
+    (commodity: string) => {
+      setSelectedCommodity(commodity);
+      // Reset varieties when commodity changes
+      const newSizes =
+        coldStorage?.preferences?.commodities?.find((c) => c.name === commodity)?.sizes ?? [];
+      setVarieties([
+        {
+          id: 'variety-0',
+          variety: '',
+          quantities: newSizes.reduce((acc, size) => ({ ...acc, [size]: '' }), {}),
+          customMarka: newSizes.reduce((acc, size) => ({ ...acc, [size]: '' }), {}),
+          locations: newSizes.reduce(
+            (acc, size) => ({
+              ...acc,
+              [size]: { chamber: '', floor: '', row: '' },
+            }),
+            {}
+          ),
+        },
+      ]);
+      varietyIdCounterRef.current = 1;
+    },
+    [coldStorage?.preferences?.commodities]
+  );
+
   // Handle Create Null Voucher confirmation
   const handleConfirmNullVoucher = useCallback(() => {
     // Reset all form values
@@ -180,6 +212,9 @@ export default function IncomingOrderPage() {
         ),
       },
     ]);
+
+    // Clear commodity selection
+    setSelectedCommodity('');
 
     // Clear farmer selection (if possible via DOM)
     const farmerSearchButton = document.getElementById('farmer-search');
@@ -240,7 +275,7 @@ export default function IncomingOrderPage() {
       description: 'Farmer details, varieties, quantities and location information.',
       content: (
         <div className={cn('space-y-8', isNullVoucher && 'pointer-events-none opacity-50')}>
-          <CommoditySelector />
+          <CommoditySelector onSelect={handleCommodityChange} disabled={isNullVoucher} />
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-4">
@@ -287,6 +322,7 @@ export default function IncomingOrderPage() {
                   index={index}
                   varietyId={varietyData.id}
                   variety={varietyData.variety}
+                  commodity={selectedCommodity}
                   onRemove={handleRemoveVariety}
                   onVarietyChange={handleVarietyChange}
                   onQuantityChange={handleQuantityChange}

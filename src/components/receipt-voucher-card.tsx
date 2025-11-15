@@ -8,6 +8,7 @@ import { ChevronUp, ChevronDown, Edit, Printer } from 'lucide-react';
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { DaybookOrder } from '@/types/daybook';
+import { ColdStorage } from '@/types/coldStorage';
 
 interface TableRow {
   variety: string;
@@ -21,6 +22,9 @@ interface TableRow {
 
 interface ReceiptVoucherCardProps {
   data: DaybookOrder;
+  coldStorage: ColdStorage | null;
+  receiptVisibleColumns: string[];
+  setReceiptColumns: (cols: string[]) => void;
 }
 
 // Memoized detail row component
@@ -78,9 +82,13 @@ const formatDate = (dateString: string): string => {
   }
 };
 
-function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
+function ReceiptVoucherCard({
+  data,
+  coldStorage,
+  receiptVisibleColumns,
+  setReceiptColumns,
+}: ReceiptVoucherCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  console.log('the data is: ', data);
 
   // Memoize toggle handler
   const toggleExpanded = useCallback(() => {
@@ -99,14 +107,24 @@ function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
     window.print();
   }, []);
 
-  // Transform varieties and bagSizes into table rows
-  const tableRows = useMemo((): TableRow[] => {
-    const rows: TableRow[] = [];
+  // Get commodity size order from preferences
+  const commodityOrder = useMemo(() => {
+    return (
+      coldStorage?.preferences?.commodities?.find((c) => c.name === data.commodity)?.sizes ?? []
+    );
+  }, [coldStorage?.preferences?.commodities, data.commodity]);
+
+  // Transform varieties and bagSizes into grouped tables by variety
+  const groupedTables = useMemo((): Record<string, TableRow[]> => {
+    const grouped: Record<string, TableRow[]> = {};
 
     // Process each variety
     data.varieties.forEach((variety) => {
+      const varietyRows: TableRow[] = [];
+
+      // Create rows for this variety
       variety.bagSizes.forEach((bagSize) => {
-        rows.push({
+        varietyRows.push({
           variety: variety.name,
           size: bagSize.name,
           quantity: `${bagSize.quantityCurr} / ${bagSize.quantityInit}`,
@@ -119,49 +137,76 @@ function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
           row: bagSize.row,
         });
       });
-    });
 
-    // Calculate totals
-    const totalQuantityCurr = data.varieties.reduce(
-      (sum, variety) =>
-        sum + variety.bagSizes.reduce((bagSum, bag) => bagSum + bag.quantityCurr, 0),
-      0
-    );
-    const totalQuantityInit = data.varieties.reduce(
-      (sum, variety) =>
-        sum + variety.bagSizes.reduce((bagSum, bag) => bagSum + bag.quantityInit, 0),
-      0
-    );
-    const totalWeight = data.varieties.reduce(
-      (sum, variety) =>
-        sum +
-        variety.bagSizes.reduce(
-          (bagSum, bag) =>
-            bagSum +
-            (bag.approxWeight !== undefined && bag.approxWeight !== null ? bag.approxWeight : 0),
-          0
-        ),
-      0
-    );
+      // Sort rows within this variety by size order from preferences
+      varietyRows.sort((a, b) => {
+        const indexA = commodityOrder.indexOf(a.size);
+        const indexB = commodityOrder.indexOf(b.size);
+        // If size not found in order, put it at the end
+        if (indexA === -1 && indexB === -1) return a.size.localeCompare(b.size);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
 
-    // Add Total row
-    if (rows.length > 0) {
-      rows.push({
-        variety: 'Total',
-        size: '-',
+      // Calculate totals for this variety
+      const totalQuantityCurr = variety.bagSizes.reduce((sum, bag) => sum + bag.quantityCurr, 0);
+      const totalQuantityInit = variety.bagSizes.reduce((sum, bag) => sum + bag.quantityInit, 0);
+      const totalWeight = variety.bagSizes.reduce(
+        (sum, bag) =>
+          sum +
+          (bag.approxWeight !== undefined && bag.approxWeight !== null ? bag.approxWeight : 0),
+        0
+      );
+
+      // Add Total row for this variety
+      varietyRows.push({
+        variety: variety.name,
+        size: 'Total',
         quantity: `${totalQuantityCurr} / ${totalQuantityInit}`,
         weight: totalWeight > 0 ? totalWeight.toFixed(2) : 'N/A',
         chamber: '-',
         floor: '-',
         row: '-',
       });
-    }
 
-    return rows;
-  }, [data.varieties]);
+      grouped[variety.name] = varietyRows;
+    });
+
+    return grouped;
+  }, [data.varieties, commodityOrder]);
+
+  // Get variety names for iteration
+  const varietyNamesForTables = useMemo(() => Object.keys(groupedTables), [groupedTables]);
 
   // Memoize columns
   const columns = useMemo(() => createTableColumns(), []);
+
+  // Convert receiptVisibleColumns array to VisibilityState object
+  const columnVisibility = useMemo(() => {
+    const visibility: Record<string, boolean> = {};
+    // All columns are visible by default
+    columns.forEach((col) => {
+      if ('accessorKey' in col && typeof col.accessorKey === 'string') {
+        visibility[col.accessorKey] = receiptVisibleColumns.includes(col.accessorKey);
+      }
+    });
+    return visibility;
+  }, [columns, receiptVisibleColumns]);
+
+  // Handle column visibility changes
+  const handleColumnVisibilityChange = useCallback(
+    (visibility: Record<string, boolean>) => {
+      // Convert VisibilityState back to array of visible column names
+      const visibleColumns = columns
+        .map((col) =>
+          'accessorKey' in col && typeof col.accessorKey === 'string' ? col.accessorKey : null
+        )
+        .filter((key): key is string => key !== null && visibility[key] === true);
+      setReceiptColumns(visibleColumns);
+    },
+    [columns, setReceiptColumns]
+  );
 
   // Extract farmer information
   const farmer = data.farmerStorageLink?.farmer;
@@ -172,15 +217,14 @@ function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
   // Format date
   const formattedDate = useMemo(() => formatDate(data.createdAt), [data.createdAt]);
 
-  // Get all variety names (for display in header if needed)
-  const varietyNames = useMemo(
+  // Get all variety names for display in header
+  const varietyNamesDisplay = useMemo(
     () => data.varieties.map((v) => v.name).join(', ') || 'N/A',
     [data.varieties]
   );
 
   return (
     <Card className="overflow-hidden">
-      {/* <>{JSON.stringify(data, null, 2)}</> */}
       <CardHeader className="pb-4 sm:pb-6">
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4 mb-5 sm:mb-6">
@@ -204,7 +248,7 @@ function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
         {/* Key Details Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 mb-5 sm:mb-6">
           <DetailRow label="Commodity" value={data.commodity} />
-          <DetailRow label="Variety" value={varietyNames} />
+          <DetailRow label="Variety" value={varietyNamesDisplay} />
           <DetailRow label="Party Name" value={partyName} />
           <DetailRow label="Gate Pass Type" value={data.gatePassType} />
         </div>
@@ -247,21 +291,32 @@ function ReceiptVoucherCard({ data }: ReceiptVoucherCardProps) {
 
           <Separator className="my-6 sm:my-8" />
 
-          {/* Table Section */}
+          {/* Table Section - Separate table for each variety */}
           <section className="mb-6 sm:mb-8">
             <h3 className="font-bold text-base sm:text-lg mb-4 sm:mb-5 text-foreground">
               Bag Details by Variety
             </h3>
-            <div className="overflow-x-auto -mx-1 sm:mx-0">
-              <DataTable
-                columns={columns}
-                data={tableRows}
-                enableRowSelection={false}
-                enablePagination={false}
-                enableSorting={true}
-                enableFiltering={false}
-                enableColumnVisibility={true}
-              />
+            <div className="space-y-6 sm:space-y-8">
+              {varietyNamesForTables.map((varietyName) => (
+                <div key={varietyName} className="space-y-3">
+                  <h4 className="font-semibold text-sm sm:text-base text-foreground border-b border-border pb-2">
+                    {varietyName}
+                  </h4>
+                  <div className="overflow-x-auto -mx-1 sm:mx-0">
+                    <DataTable
+                      columns={columns}
+                      data={groupedTables[varietyName]}
+                      enableRowSelection={false}
+                      enablePagination={false}
+                      enableSorting={true}
+                      enableFiltering={false}
+                      enableColumnVisibility={true}
+                      initialColumnVisibility={columnVisibility}
+                      onColumnVisibilityChange={handleColumnVisibilityChange}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 

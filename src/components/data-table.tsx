@@ -53,6 +53,8 @@ interface DataTableProps<TData, TValue> {
   enablePagination?: boolean;
   enableSorting?: boolean;
   enableFiltering?: boolean;
+  initialColumnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: (visibility: VisibilityState) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -65,11 +67,55 @@ export function DataTable<TData, TValue>({
   enablePagination = true,
   enableSorting = true,
   enableFiltering = true,
+  initialColumnVisibility,
+  onColumnVisibilityChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
+    initialColumnVisibility ?? {}
+  );
   const [rowSelection, setRowSelection] = React.useState({});
+  const isMountedRef = React.useRef(false);
+  const pendingVisibilityRef = React.useRef<VisibilityState | null>(null);
+
+  // Mark as mounted after first render
+  React.useEffect(() => {
+    isMountedRef.current = true;
+  }, []);
+
+  // Update local state when initialColumnVisibility changes (from props/store)
+  React.useEffect(() => {
+    if (initialColumnVisibility !== undefined && isMountedRef.current) {
+      // Only update if there's no pending user change
+      if (pendingVisibilityRef.current === null) {
+        setColumnVisibility(initialColumnVisibility);
+      }
+    }
+  }, [initialColumnVisibility]);
+
+  // Handle column visibility changes - only update local state immediately
+  const handleColumnVisibilityChange = React.useCallback(
+    (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => {
+      setColumnVisibility((old) => {
+        const newVisibility = typeof updater === 'function' ? updater(old) : updater;
+        // Store for later sync to store (after render)
+        if (isMountedRef.current) {
+          pendingVisibilityRef.current = newVisibility;
+        }
+        return newVisibility;
+      });
+    },
+    []
+  );
+
+  // Sync user-initiated visibility changes to store after render
+  React.useEffect(() => {
+    if (pendingVisibilityRef.current !== null && onColumnVisibilityChange && isMountedRef.current) {
+      onColumnVisibilityChange(pendingVisibilityRef.current);
+      pendingVisibilityRef.current = null;
+    }
+  }, [columnVisibility, onColumnVisibilityChange]);
 
   const table = useReactTable({
     data,
@@ -80,7 +126,7 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
     getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
     getFilteredRowModel: enableFiltering ? getFilteredRowModel() : undefined,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
     state: {
       sorting,
