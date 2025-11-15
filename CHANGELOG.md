@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.3.1](///compare/v0.3.0...v0.3.1) (2025-11-15)
+
+### Features
+
+- refactor forms, improve daybook functionality, and enhance farmer management 6e3bd0f
+
 ## [0.3.0](///compare/v0.2.0...v0.3.0) (2025-11-14)
 
 ### Features
