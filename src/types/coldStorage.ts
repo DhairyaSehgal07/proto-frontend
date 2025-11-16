@@ -25,6 +25,7 @@ export interface ColdStoragePreferences {
   rouging: string | null;
   tuberType: string | null;
   grader: string | null;
+  varieties?: string[];
 
   incoming: {
     showCustomMarka: boolean;

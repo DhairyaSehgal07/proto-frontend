@@ -2,29 +2,29 @@
 
 import { SearchSelector } from '../search-selector';
 import { Label } from '@/components/ui/label';
-import { useStore } from '@/store';
 import { useMemo } from 'react';
 
 interface VarietySelectorProps {
   id?: string;
   onSelect?: (value: string) => void;
   disabled?: boolean;
+  varieties?: string[];
 }
 
 export const VarietySelector = ({
   id = 'variety-selector',
   onSelect,
   disabled = false,
+  varieties = [],
 }: VarietySelectorProps) => {
-  const { coldStorage } = useStore();
   const varietyOptions = useMemo(() => {
     return (
-      coldStorage?.preferences?.varieties?.map((variety) => ({
+      varieties.map((variety: string) => ({
         label: variety,
         value: variety,
       })) || []
     );
-  }, [coldStorage?.preferences?.varieties]);
+  }, [varieties]);
 
   return (
     <div className="space-y-3">

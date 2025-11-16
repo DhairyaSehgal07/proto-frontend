@@ -8,7 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useEnterNavigation } from '@/hooks/use-enter-navigation';
-import { useStore } from '@/store';
 import { X } from 'lucide-react';
 
 interface VarietyEntryProps {
@@ -16,6 +15,9 @@ interface VarietyEntryProps {
   varietyId: string;
   variety: string;
   commodity?: string; // Selected commodity name
+  sizes: string[]; // Sizes for the selected commodity
+  showCustomMarka: boolean; // Whether to show custom marka field
+  varieties?: string[]; // Available varieties from preferences
   onRemove: (id: string) => void;
   onVarietyChange: (id: string, variety: string) => void;
   onQuantityChange: (id: string, size: string, quantity: string) => void;
@@ -39,6 +41,9 @@ export function VarietyEntry({
   varietyId,
   variety, // Reserved for future use (controlled component)
   commodity,
+  sizes,
+  showCustomMarka,
+  varieties = [],
   onRemove,
   onVarietyChange,
   onQuantityChange,
@@ -54,15 +59,6 @@ export function VarietyEntry({
   // Suppress unused variable warning - variety is reserved for future controlled component use
   void variety;
   const containerRef = useRef<HTMLDivElement>(null);
-  const { coldStorage } = useStore();
-
-  // Get sizes based on selected commodity
-  const sizes = React.useMemo(() => {
-    if (!commodity) return [];
-    return coldStorage?.preferences?.commodities?.find((c) => c.name === commodity)?.sizes ?? [];
-  }, [coldStorage?.preferences?.commodities, commodity]);
-
-  const showCustomMarkafield = coldStorage?.preferences?.incoming?.showCustomMarka ?? false;
 
   const { onKeyDown } = useEnterNavigation({
     containerRef: containerRef as React.RefObject<HTMLElement>,
@@ -121,6 +117,7 @@ export function VarietyEntry({
             id={`variety-selector-${varietyId}`}
             onSelect={handleVarietySelect}
             disabled={disabled}
+            varieties={varieties}
           />
         </div>
 
@@ -135,7 +132,7 @@ export function VarietyEntry({
             varietyId={varietyId}
             sizes={sizes}
             disabled={disabled}
-            showCustomMarka={showCustomMarkafield}
+            showCustomMarka={showCustomMarka}
             inline={true}
             containerRef={containerRef as React.RefObject<HTMLElement>}
             onKeyDown={onKeyDown}

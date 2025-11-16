@@ -69,6 +69,16 @@ export default function IncomingOrderPage() {
     );
   }, [coldStorage?.preferences?.commodities, selectedCommodity]);
 
+  // Get showCustomMarka preference
+  const showCustomMarka = useMemo(() => {
+    return coldStorage?.preferences?.incoming?.showCustomMarka ?? false;
+  }, [coldStorage?.preferences?.incoming?.showCustomMarka]);
+
+  // Get available varieties from preferences
+  const availableVarieties = useMemo(() => {
+    return coldStorage?.preferences?.varieties ?? [];
+  }, [coldStorage?.preferences?.varieties]);
+
   // Generate a stable ID for variety entries
   const generateVarietyId = useCallback(() => {
     const id = `variety-${varietyIdCounterRef.current}`;
@@ -323,6 +333,9 @@ export default function IncomingOrderPage() {
                   varietyId={varietyData.id}
                   variety={varietyData.variety}
                   commodity={selectedCommodity}
+                  sizes={sizes}
+                  showCustomMarka={showCustomMarka}
+                  varieties={availableVarieties}
                   onRemove={handleRemoveVariety}
                   onVarietyChange={handleVarietyChange}
                   onQuantityChange={handleQuantityChange}
