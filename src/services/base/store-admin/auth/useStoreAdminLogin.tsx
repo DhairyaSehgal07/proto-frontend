@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { baseApi } from '@/lib/axios';
+// import { baseApi } from '@/lib/axios';
 import type { StoreAdminLoginInput, StoreAdminLoginResponse } from '@/types/storeAdmin';
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store';
@@ -18,7 +18,7 @@ export const useStoreAdminLogin = () => {
     mutationKey: ['store-admin', 'login'],
     mutationFn: async (payload) => {
       setLoading(true); // 🌀 start loading in global store
-      const { data } = await baseApi.post('/store-admin/login', payload);
+      const { data } = await axios.post('/api/login', payload);
       return data;
     },
     onSuccess: (data) => {

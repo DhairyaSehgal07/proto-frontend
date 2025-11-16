@@ -1,7 +1,5 @@
 // src/lib/axios.ts
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import Cookies from 'js-cookie';
-import { getCookie } from './utils';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000';
@@ -9,23 +7,17 @@ const BASE_URL =
 // ✅ Create base Axios instance
 export const baseApi: AxiosInstance = axios.create({
   baseURL: `${BASE_URL}/api/v1/base`,
-  withCredentials: true,
+  withCredentials: true, // ensures browser sends cookies automatically
   headers: {
     'Content-Type': 'application/json',
   },
-  // Optional: Prevents long-hanging requests in production
   timeout: 10000, // 10 seconds
 });
 
-// ✅ Request Interceptor
+// ✅ Request Interceptor (optional, only for logging/debugging)
 baseApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Get JWT token from cookie and set Authorization header
-    // Backend expects Authorization header even though we also send cookies
-    const jwtToken = getCookie('jwt');
-    if (jwtToken && !config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${jwtToken}`;
-    }
+    // No need to manually attach JWT — cookie is sent automatically
     return config;
   },
   (error) => {
@@ -41,12 +33,9 @@ baseApi.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig;
     const status = error.response?.status;
 
-    // Handle Unauthorized (401) - Redirect to login
+    // Handle Unauthorized (401) - redirect to login
     if (status === 401 && typeof window !== 'undefined') {
-      // Clear JWT cookie
-      Cookies.remove('jwt', { path: '/' });
-
-      // Only redirect if we're not already on the login page
+      // Browser cookie is HTTP-only, no need to remove manually
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
@@ -59,12 +48,10 @@ baseApi.interceptors.response.use(
 
     // Handle Network or Server Errors
     if (!error.response) {
-      // Don't log cancellation errors (expected behavior)
       if (error.code === 'ERR_CANCELED' || error.message === 'canceled') {
         return Promise.reject(error);
       }
 
-      // Provide more context about the failed request
       const requestUrl = originalRequest?.url || 'unknown';
       const requestMethod = originalRequest?.method?.toUpperCase() || 'UNKNOWN';
       const errorMessage = error.message || 'Network error or server unavailable';

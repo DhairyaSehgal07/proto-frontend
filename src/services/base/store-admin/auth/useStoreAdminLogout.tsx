@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { baseApi } from '@/lib/axios';
+import axios from 'axios';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
@@ -15,32 +15,26 @@ export const useStoreAdminLogout = () => {
   return useMutation<LogoutResponse, Error, void>({
     mutationKey: ['store-admin', 'logout'],
     mutationFn: async () => {
-      const { data } = await baseApi.post<LogoutResponse>('/store-admin/logout');
+      const { data } = await axios.post<LogoutResponse>('/api/logout');
       return data;
     },
     onSuccess: (data) => {
-      // Clear JWT cookie (server should clear it, but clear client-side as well)
-      if (typeof document !== 'undefined') {
-        document.cookie = 'jwt=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
-
       // Clear cached queries related to store-admin
       queryClient.removeQueries({ queryKey: ['store-admin'], exact: false });
 
       // Notify user
       toast.success(data.message || 'Logged out successfully');
 
-      // Redirect to login page
+      // Redirect to login page and refresh to ensure clean state
       router.push('/login');
+      router.refresh();
     },
-    onError: (error) => {
-      // Even if logout fails, clear cookie and redirect
-      if (typeof document !== 'undefined') {
-        document.cookie = 'jwt=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
+    onError: () => {
+      // Even if logout fails, clear queries and redirect
       queryClient.removeQueries({ queryKey: ['store-admin'], exact: false });
-      toast.error(error.message || 'Logout failed');
+      toast.error('Logout failed');
       router.push('/login');
+      router.refresh();
     },
   });
 };
