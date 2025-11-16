@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       data: {
         admin: data.data.admin,
         coldStorage: data.data.coldStorage,
+        token: data.data.token,
       },
     });
 

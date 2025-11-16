@@ -19,11 +19,19 @@ export interface StoreAdminLoginInput {
 }
 
 export interface StoreAdminLoginResponse {
-  success: boolean;
+  success: true; // Only true when login succeeds
   message: string;
-  token?: string;
-  data?: {
+  data: {
     admin: StoreAdmin;
     coldStorage: ColdStorage;
+    token: string; // token is guaranteed if success is true
   };
 }
+
+// Optional error response type
+export interface StoreAdminLoginErrorResponse {
+  success: false;
+  message: string;
+}
+
+export type StoreAdminLoginApiResponse = StoreAdminLoginResponse | StoreAdminLoginErrorResponse;

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 // import { baseApi } from '@/lib/axios';
-import type { StoreAdminLoginInput, StoreAdminLoginResponse } from '@/types/storeAdmin';
+import type { StoreAdminLoginInput, StoreAdminLoginApiResponse } from '@/types/storeAdmin';
 import axios, { AxiosError } from 'axios';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,7 @@ export const useStoreAdminLogin = () => {
   const { setAdminData, setLoading } = useStore();
 
   return useMutation<
-    StoreAdminLoginResponse,
+    StoreAdminLoginApiResponse,
     AxiosError<{ message?: string }>,
     StoreAdminLoginInput
   >({
@@ -22,16 +22,16 @@ export const useStoreAdminLogin = () => {
       return data;
     },
     onSuccess: (data) => {
-      if (!data.data) {
+      if (!data.success || !data.data) {
         setLoading(false);
-        toast.error('Login failed: No data received');
+        toast.error(data.message || 'Login failed: No data received');
         return;
       }
 
-      const { admin, coldStorage } = data.data;
+      const { admin, coldStorage, token } = data.data;
 
-      // ✅ Save login data globally
-      setAdminData(admin, coldStorage);
+      // ✅ Save login data globally (including token)
+      setAdminData(admin, coldStorage, token);
       setLoading(false);
 
       toast.success(data.message || 'Logged in successfully!');

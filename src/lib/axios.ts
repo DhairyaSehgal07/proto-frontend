@@ -1,5 +1,6 @@
 // src/lib/axios.ts
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { useStore } from '@/store';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000';
@@ -14,10 +15,19 @@ export const baseApi: AxiosInstance = axios.create({
   timeout: 10000, // 10 seconds
 });
 
-// ✅ Request Interceptor (optional, only for logging/debugging)
+// ✅ Request Interceptor - Add Authorization Bearer token from store
 baseApi.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // No need to manually attach JWT — cookie is sent automatically
+    // Get token from store (only in browser environment)
+    if (typeof window !== 'undefined') {
+      const { token, tokenExpiry } = useStore.getState();
+
+      // Check if token exists and hasn't expired
+      if (token && tokenExpiry && Date.now() < tokenExpiry) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
     return config;
   },
   (error) => {
@@ -33,9 +43,12 @@ baseApi.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig;
     const status = error.response?.status;
 
-    // Handle Unauthorized (401) - redirect to login
+    // Handle Unauthorized (401) - clear token and redirect to login
     if (status === 401 && typeof window !== 'undefined') {
-      // Browser cookie is HTTP-only, no need to remove manually
+      // Clear admin data (including token) from store
+      useStore.getState().clearAdminData();
+
+      // Redirect to login if not already there
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }

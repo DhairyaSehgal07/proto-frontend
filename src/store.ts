@@ -7,6 +7,8 @@ import type { ColdStorage } from '@/types/coldStorage';
 interface StoreState {
   admin: Omit<StoreAdmin, 'password'> | null;
   coldStorage: ColdStorage | null;
+  token: string | null;
+  tokenExpiry: number | null; // timestamp in milliseconds
   isLoading: boolean;
   _hasHydrated: boolean;
 
@@ -16,19 +18,28 @@ interface StoreState {
   toggleReceiptColumn: (col: string) => void;
   resetReceiptColumns: () => void;
 
-  setAdminData: (admin: Omit<StoreAdmin, 'password'>, coldStorage: ColdStorage) => void;
+  setAdminData: (
+    admin: Omit<StoreAdmin, 'password'>,
+    coldStorage: ColdStorage,
+    token: string
+  ) => void;
   clearAdminData: () => void;
   setLoading: (loading: boolean) => void;
   setHasHydrated: (state: boolean) => void;
 }
 
-type PersistedState = Pick<StoreState, 'admin' | 'coldStorage' | 'receiptVisibleColumns'>;
+type PersistedState = Pick<
+  StoreState,
+  'admin' | 'coldStorage' | 'token' | 'tokenExpiry' | 'receiptVisibleColumns'
+>;
 
 export const useStore = create(
   persist<StoreState, [], [], PersistedState>(
     (set, get) => ({
       admin: null,
       coldStorage: null,
+      token: null,
+      tokenExpiry: null,
       isLoading: false,
       _hasHydrated: false,
 
@@ -63,8 +74,11 @@ export const useStore = create(
 
       /* -------------------------------- */
 
-      setAdminData: (admin, coldStorage) => set({ admin, coldStorage, isLoading: false }),
-      clearAdminData: () => set({ admin: null, coldStorage: null }),
+      setAdminData: (admin, coldStorage, token) => {
+        const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000; // 1 week from now
+        set({ admin, coldStorage, token, tokenExpiry: expiryTime, isLoading: false });
+      },
+      clearAdminData: () => set({ admin: null, coldStorage: null, token: null, tokenExpiry: null }),
       setLoading: (loading) => set({ isLoading: loading }),
       setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
@@ -73,9 +87,15 @@ export const useStore = create(
       partialize: (state): PersistedState => ({
         admin: state.admin,
         coldStorage: state.coldStorage,
+        token: state.token,
+        tokenExpiry: state.tokenExpiry,
         receiptVisibleColumns: state.receiptVisibleColumns,
       }),
       onRehydrateStorage: () => (state) => {
+        // Check if token has expired (1 week)
+        if (state?.tokenExpiry && Date.now() > state.tokenExpiry) {
+          state.clearAdminData();
+        }
         state?.setHasHydrated(true);
       },
     }
