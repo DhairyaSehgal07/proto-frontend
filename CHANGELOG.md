@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.4.0](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.3.3...v0.4.0) (2025-11-17)
+
+### Features
+
+- implement incoming order form with validation and API integration ([d5fde10](https://github.com/DhairyaSehgal07/proto-frontend/commit/d5fde108e2358200ee51277bfcb3d4bc1eaa0c5a))
+
 ### [0.3.3](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.3.2...v0.3.3) (2025-11-17)
 
 ### Performance Improvements
