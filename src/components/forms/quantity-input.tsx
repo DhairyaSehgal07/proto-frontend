@@ -1,5 +1,5 @@
 'use client';
-import React, { useRef } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -21,6 +21,16 @@ interface QuantityInputSectionProps {
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   inline?: boolean; // If true, don't render Card wrapper (for use inside another Card)
 }
+
+// Helper function to validate quantity string (allows floats) - matches incomingOrderFormSchema.ts
+const validateQuantityString = (val: string): boolean => {
+  if (!val || val.trim() === '') return false;
+  const num = parseFloat(val);
+  return !isNaN(num) && isFinite(num) && num > 0;
+};
+
+// Note: The "at least one valid quantity" validation is handled at form submission level
+// in incomingOrderFormSchema.ts, not at the individual field level
 
 export function QuantityInputSection({
   onLastFieldEnter,
@@ -54,8 +64,58 @@ export function QuantityInputSection({
 
   const handleKeyDown = externalOnKeyDown || internalOnKeyDown;
 
+  // Track which fields have been touched (user has typed in)
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+
+  // Validation state for each quantity input (only for touched fields)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // Validate individual quantity on change (only when user types)
+  const handleQuantityChangeWithValidation = (size: string, quantity: string) => {
+    // Mark field as touched
+    setTouchedFields((prev) => new Set(prev).add(size));
+
+    onQuantityChange?.(size, quantity);
+    // Validate individual quantity only if field has been touched
+    if (quantity && quantity.trim() !== '') {
+      const isValid = validateQuantityString(quantity);
+      if (!isValid) {
+        setValidationErrors((prev) => ({
+          ...prev,
+          [size]: 'Quantity must be a valid positive number (decimals allowed)',
+        }));
+      } else {
+        setValidationErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[size];
+          return newErrors;
+        });
+      }
+    } else {
+      // Clear error if field is empty
+      setValidationErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[size];
+        return newErrors;
+      });
+    }
+  };
+
   // If used as a standalone component (no callbacks provided)
   const isStandalone = !onQuantityChange && !onCustomMarkaChange;
+
+  // Calculate total quantity
+  const totalQuantity = useMemo(() => {
+    if (!quantities || !sizes.length) return 0;
+    return sizes.reduce((sum, size) => {
+      const quantity = quantities[size];
+      if (quantity && quantity.trim() !== '') {
+        const num = parseFloat(quantity);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+  }, [quantities, sizes]);
 
   const content = (
     <div className="space-y-6">
@@ -64,17 +124,22 @@ export function QuantityInputSection({
           <div className="flex items-center justify-between gap-4">
             <Label className="text-base font-medium min-w-[80px]">{size}</Label>
             <div className="flex items-center gap-3 flex-1 max-w-md">
-              <Input
-                placeholder="Quantity"
-                value={quantities?.[size] || ''}
-                onChange={(e) => onQuantityChange?.(size, e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="h-10"
-                data-variety-id={varietyId}
-                data-size={size}
-                data-type="quantity"
-                disabled={disabled}
-              />
+              <div className="flex-1">
+                <Input
+                  placeholder="Quantity"
+                  value={quantities?.[size] || ''}
+                  onChange={(e) => handleQuantityChangeWithValidation(size, e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className={`h-10 ${touchedFields.has(size) && validationErrors[size] ? 'border-destructive' : ''}`}
+                  data-variety-id={varietyId}
+                  data-size={size}
+                  data-type="quantity"
+                  disabled={disabled}
+                />
+                {touchedFields.has(size) && validationErrors[size] && (
+                  <p className="text-sm text-destructive mt-1">{validationErrors[size]}</p>
+                )}
+              </div>
               {showCustomMarka && (
                 <Input
                   placeholder="Custom Marka"
@@ -93,6 +158,17 @@ export function QuantityInputSection({
           {index < sizes.length - 1 && <Separator className="mt-2" />}
         </div>
       ))}
+      {/* Total Quantity Display */}
+      <div className="pt-4 border-t">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold">Total Quantity</Label>
+          <div className="text-lg font-bold text-primary">
+            {totalQuantity > 0
+              ? totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 })
+              : '0'}
+          </div>
+        </div>
+      </div>
     </div>
   );
 

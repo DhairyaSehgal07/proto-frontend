@@ -30,7 +30,16 @@ import { useStore } from '@/store';
 import { Plus } from 'lucide-react';
 import OrderNumber from '@/components/forms/order-number';
 import { CommoditySelector } from '@/components/forms/commodity-selector';
-
+import { useGetGatePassNumber } from '@/services/base/incoming-orders/useGatePassNumber';
+import { Commodity, CreateIncomingOrderInput, IncomingOrderBagSize } from '@/types/incomingorder';
+import { useCreateIncomingOrder } from '@/services/base/incoming-orders/useCreateIncomingOrder';
+import { toast } from 'sonner';
+import { useGetAllFarmers } from '@/services/base/store-admin/functions/useGetAllFarmers';
+import {
+  incomingOrderFormSchema,
+  nullVoucherFormSchema,
+  type IncomingOrderFormData,
+} from '@/schemas/incomingOrderFormSchema';
 interface VarietyData {
   id: string;
   variety: string;
@@ -57,9 +66,14 @@ export default function IncomingOrderPage() {
   const [isNullVoucher, setIsNullVoucher] = useState(false);
   const [showNullVoucherDialog, setShowNullVoucherDialog] = useState(false);
   const [selectedCommodity, setSelectedCommodity] = useState<string>('');
+  const [farmerStorageLinkId, setFarmerStorageLinkId] = useState<string>('');
   const remarksRef = useRef<HTMLTextAreaElement>(null);
   const varietyIdCounterRef = useRef(1);
   const { coldStorage } = useStore();
+
+  const { data } = useGetGatePassNumber((selectedCommodity as Commodity) || undefined, 'incoming');
+  const createIncomingOrderMutation = useCreateIncomingOrder();
+  const farmersQuery = useGetAllFarmers();
 
   // Get sizes based on selected commodity
   const sizes = useMemo(() => {
@@ -206,7 +220,21 @@ export default function IncomingOrderPage() {
 
   // Handle Create Null Voucher confirmation
   const handleConfirmNullVoucher = useCallback(() => {
-    // Reset all form values
+    // Validate that farmer is selected before creating null voucher
+    if (!farmerStorageLinkId) {
+      toast.error('Please select a farmer before creating a null voucher');
+      setShowNullVoucherDialog(false);
+      return;
+    }
+
+    // Validate that commodity is selected
+    if (!selectedCommodity) {
+      toast.error('Please select a commodity before creating a null voucher');
+      setShowNullVoucherDialog(false);
+      return;
+    }
+
+    // Reset varieties (empty array for null voucher)
     setVarieties([
       {
         id: 'variety-0',
@@ -223,15 +251,6 @@ export default function IncomingOrderPage() {
       },
     ]);
 
-    // Clear commodity selection
-    setSelectedCommodity('');
-
-    // Clear farmer selection (if possible via DOM)
-    const farmerSearchButton = document.getElementById('farmer-search');
-    if (farmerSearchButton) {
-      farmerSearchButton.textContent = 'Select farmer...';
-    }
-
     // Clear date
     const dateInput = document.getElementById('date') as HTMLInputElement;
     if (dateInput) {
@@ -242,42 +261,185 @@ export default function IncomingOrderPage() {
     setIsNullVoucher(true);
     setActiveStep(1);
     setShowNullVoucherDialog(false);
-  }, [sizes]);
+  }, [sizes, farmerStorageLinkId, selectedCommodity]);
 
   const handleSubmit = useCallback(() => {
-    // Collect all form data
-    const formData: SubmittedFormData = {
-      farmer: '',
-      orderDate: '',
-      remarks: '',
-      varieties: [],
-    };
-
-    // Get farmer selection
-    const farmerSearchButton = document.getElementById('farmer-search');
-    const selectedFarmer = farmerSearchButton?.textContent?.trim() || 'Not selected';
-
-    // Get date
-    const dateInput = document.getElementById('date') as HTMLInputElement;
-    const orderDate = dateInput?.value || 'Not selected';
+    const gatePassNumber = data?.data?.nextGatePassNumber;
+    if (!gatePassNumber) {
+      toast.error('Gate pass number not available. Please select a commodity.');
+      return;
+    }
 
     // Get remarks
-    const remarks = remarksRef.current?.value || '';
+    const remarks = remarksRef.current?.value || null;
 
-    // Compile all data with multiple varieties
-    formData.farmer = selectedFarmer;
-    formData.orderDate = orderDate;
-    formData.remarks = remarks;
-    formData.varieties = varieties.map((v) => ({
-      variety: v.variety || 'Not selected',
-      quantities: v.quantities,
-      customMarka: v.customMarka,
-      locations: v.locations,
-    }));
+    // Prepare form data for validation
+    const formData = {
+      farmerStorageLinkId,
+      commodity: selectedCommodity as Commodity,
+      remarks: remarks || null,
+      varieties: isNullVoucher ? [] : varieties.filter((v) => v.variety), // Filter out empty varieties
+    };
 
-    // Set submitted data to display
-    setSubmittedData(formData);
-  }, [varieties]);
+    // Validate using Zod schema
+    let validationResult;
+    if (isNullVoucher) {
+      validationResult = nullVoucherFormSchema.safeParse({
+        ...formData,
+        varieties: [],
+      });
+    } else {
+      validationResult = incomingOrderFormSchema.safeParse(formData);
+    }
+
+    // Handle validation errors
+    if (!validationResult.success) {
+      const errors = validationResult.error.issues;
+      // Show first error message
+      const firstError = errors[0];
+      if (firstError) {
+        const errorMessage = firstError.message || `Validation error: ${firstError.path.join('.')}`;
+        toast.error(errorMessage);
+      } else {
+        toast.error('Please check your form data and try again');
+      }
+      return;
+    }
+
+    // Transform validated form data into API payload
+    const payload: CreateIncomingOrderInput = {
+      farmerStorageLinkId: validationResult.data.farmerStorageLinkId,
+      commodity: validationResult.data.commodity,
+      gatePassNumber,
+      remarks: validationResult.data.remarks?.trim() || null,
+    };
+
+    // For null voucher, varieties array is empty and gatePassType is optional
+    if (isNullVoucher) {
+      payload.varieties = [];
+      // gatePassType is optional for null voucher, so we can omit it
+    } else {
+      // Regular voucher - include gatePassType and varieties
+      payload.gatePassType = 'RECEIPT';
+
+      // Transform validated varieties data
+      const validatedData = validationResult.data as IncomingOrderFormData;
+      payload.varieties = validatedData.varieties.map((v) => {
+        // Transform bag sizes
+        const bagSizes = sizes
+          .filter((size) => {
+            const quantity = v.quantities[size];
+            return quantity && quantity.trim() !== '' && !isNaN(parseFloat(quantity));
+          })
+          .map((size) => {
+            const quantity = parseFloat(v.quantities[size]); // Use parseFloat to support decimals
+            const customMarkaValue = v.customMarka?.[size]?.trim();
+            const location = v.locations?.[size] || {};
+
+            // Helper to convert empty strings to null
+            const toNullIfEmpty = (value: string | undefined | null): string | null => {
+              if (!value || value.trim() === '') return null;
+              return value.trim();
+            };
+
+            // Build bagSize object, only including customMarka if it has a value
+            const bagSize = {
+              name: size,
+              quantityInit: quantity,
+              quantityCurr: quantity,
+              approxWeight: null, // Not captured in form, set to null
+              floor: toNullIfEmpty(location.floor),
+              row: toNullIfEmpty(location.row),
+              chamber: toNullIfEmpty(location.chamber),
+              ...(customMarkaValue && customMarkaValue.trim() !== ''
+                ? { customMarka: customMarkaValue.trim() }
+                : {}),
+            } as IncomingOrderBagSize;
+
+            return bagSize;
+          });
+
+        return {
+          name: v.variety,
+          bagSizes,
+        };
+      });
+    }
+
+    // Submit to API
+    createIncomingOrderMutation.mutate(payload, {
+      onSuccess: () => {
+        // Reset form after successful submission
+        setVarieties([
+          {
+            id: 'variety-0',
+            variety: '',
+            quantities: sizes.reduce((acc, size) => ({ ...acc, [size]: '' }), {}),
+            customMarka: sizes.reduce((acc, size) => ({ ...acc, [size]: '' }), {}),
+            locations: sizes.reduce(
+              (acc, size) => ({
+                ...acc,
+                [size]: { chamber: '', floor: '', row: '' },
+              }),
+              {}
+            ),
+          },
+        ]);
+        setSelectedCommodity('');
+        setFarmerStorageLinkId('');
+        setIsNullVoucher(false);
+        setActiveStep(0);
+        if (remarksRef.current) {
+          remarksRef.current.value = '';
+        }
+        setSubmittedData(null);
+      },
+    });
+  }, [
+    farmerStorageLinkId,
+    selectedCommodity,
+    data?.data?.nextGatePassNumber,
+    remarksRef,
+    isNullVoucher,
+    varieties,
+    sizes,
+    createIncomingOrderMutation,
+  ]);
+
+  // Get farmer name from farmerStorageLinkId
+  const selectedFarmer = useMemo(() => {
+    if (!farmerStorageLinkId || !farmersQuery.data?.data) return null;
+    return farmersQuery.data?.data.find((f) => f.id === farmerStorageLinkId) ?? null;
+  }, [farmerStorageLinkId, farmersQuery.data?.data]);
+
+  // Get date value from DatePicker input (only when on summary step)
+  const orderDate = useMemo(() => {
+    if (activeStep !== 1 || typeof document === 'undefined') return '';
+    const dateInput = document.getElementById('date') as HTMLInputElement;
+    return dateInput?.value || '';
+  }, [activeStep]);
+
+  // Calculate total quantities for each variety
+  const varietyTotals = useMemo(() => {
+    return varieties
+      .filter((v) => v.variety)
+      .map((v) => {
+        const total = sizes.reduce((sum, size) => {
+          const quantity = v.quantities[size];
+          if (quantity && quantity.trim() !== '') {
+            const num = parseFloat(quantity);
+            return sum + (isNaN(num) ? 0 : num);
+          }
+          return sum;
+        }, 0);
+        return { variety: v.variety, total, quantities: v.quantities };
+      });
+  }, [varieties, sizes]);
+
+  // Calculate grand total
+  const grandTotal = useMemo(() => {
+    return varietyTotals.reduce((sum, v) => sum + v.total, 0);
+  }, [varietyTotals]);
 
   const steps = [
     {
@@ -296,7 +458,11 @@ export default function IncomingOrderPage() {
                   Select Farmer
                 </Label>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-                  <FarmerSearch />
+                  <FarmerSearch
+                    onSelect={(id) => {
+                      setFarmerStorageLinkId(id);
+                    }}
+                  />
                   <AddFarmerModal />
                 </div>
               </div>
@@ -379,6 +545,119 @@ export default function IncomingOrderPage() {
               </div>
             </div>
           )}
+
+          {/* Order Summary */}
+          {!isNullVoucher && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Order Summary</CardTitle>
+                <CardDescription>Review the details before submitting</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Farmer Information */}
+                {selectedFarmer && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Farmer</Label>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-base font-semibold">{selectedFarmer.name}</p>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        <span>📞 {selectedFarmer.mobileNumber}</span>
+                        {selectedFarmer.address && (
+                          <span className="truncate max-w-[300px]">
+                            📍 {selectedFarmer.address}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Order Date */}
+                {orderDate && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Order Date</Label>
+                    <p className="text-base">{orderDate}</p>
+                  </div>
+                )}
+
+                {/* Commodity */}
+                {selectedCommodity && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Commodity</Label>
+                    <p className="text-base font-semibold">{selectedCommodity}</p>
+                  </div>
+                )}
+
+                {/* Varieties and Quantities */}
+                {varietyTotals.length > 0 && (
+                  <div className="space-y-6">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Varieties & Quantities
+                    </Label>
+                    <div className="space-y-4">
+                      {varietyTotals.map((vt, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-lg border bg-card shadow-sm overflow-hidden"
+                        >
+                          {/* Header Section */}
+                          <div className="flex items-center justify-between px-5 py-4 bg-muted/30 border-b">
+                            <h3 className="text-lg font-semibold text-foreground">{vt.variety}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-muted-foreground">
+                                Total:
+                              </span>
+                              <span className="text-lg font-bold text-primary">
+                                {vt.total.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                          {/* Quantities Grid */}
+                          <div className="p-5">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
+                              {sizes.map((size) => {
+                                const qty = vt.quantities[size];
+                                if (!qty || qty.trim() === '') return null;
+                                return (
+                                  <div
+                                    key={size}
+                                    className="flex items-center justify-between py-2 border-b border-border/50 last:border-b-0"
+                                  >
+                                    <span className="text-sm font-medium text-muted-foreground">
+                                      {size}
+                                    </span>
+                                    <span className="text-sm font-semibold text-foreground ml-4">
+                                      {parseFloat(qty).toLocaleString('en-US', {
+                                        maximumFractionDigits: 2,
+                                      })}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Grand Total */}
+                    {varietyTotals.length > 0 && (
+                      <div className="rounded-lg border-2 border-primary/20 bg-primary/5 px-5 py-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-lg font-semibold text-foreground">
+                            Grand Total
+                          </Label>
+                          <p className="text-2xl font-bold text-primary">
+                            {grandTotal.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="space-y-3">
             <Label htmlFor="remarks" className="text-base font-medium">
               Add Remarks
@@ -464,7 +743,11 @@ export default function IncomingOrderPage() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   {/* Left side: Order info */}
                   <div className="flex flex-col">
-                    <OrderNumber type="Receipt" name="Voucher" />
+                    <OrderNumber
+                      gatePassNumber={data?.data?.nextGatePassNumber}
+                      type="Receipt"
+                      name="Voucher"
+                    />
                     <CardTitle className="text-2xl mt-2">{step.title}</CardTitle>
                     {step.description && (
                       <CardDescription className="text-base mt-1">
@@ -498,7 +781,9 @@ export default function IncomingOrderPage() {
                 </div>
                 <div>
                   {isLastStep ? (
-                    <Button onClick={handleSubmit}>Submit</Button>
+                    <Button onClick={handleSubmit} disabled={createIncomingOrderMutation.isPending}>
+                      {createIncomingOrderMutation.isPending ? 'Submitting...' : 'Submit'}
+                    </Button>
                   ) : (
                     <Button onClick={() => setActiveStep((s) => s + 1)} disabled={isNullVoucher}>
                       Next

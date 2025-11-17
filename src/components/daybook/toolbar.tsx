@@ -4,16 +4,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import SearchBar from './search-bar';
 import FilterDropdowns from './filter-dropdown';
 import ActionButtons from './action-buttons';
+import type { ColdStoragePreferences } from '@/types/coldStorage';
 
 interface ToolbarProps {
   totalOrders: number | null;
   searchQuery: string;
   orderFilter: string;
   sortFilter: string;
+  commodityFilter: string;
+  preferences?: ColdStoragePreferences;
   preferencesId: string;
   onSearchChange: (query: string) => void;
   onOrderFilterChange: (filter: string) => void;
   onSortFilterChange: (filter: string) => void;
+  onCommodityFilterChange: (filter: string) => void;
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -21,10 +25,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
   searchQuery,
   orderFilter,
   sortFilter,
+  commodityFilter,
+  preferences,
   preferencesId,
   onSearchChange,
   onOrderFilterChange,
   onSortFilterChange,
+  onCommodityFilterChange,
 }) => {
   return (
     <div className="pb-8 space-y-4">
@@ -56,8 +63,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 <FilterDropdowns
                   orderFilter={orderFilter}
                   sortFilter={sortFilter}
+                  commodityFilter={commodityFilter}
+                  commodities={preferences?.commodities || []}
                   onOrderFilterChange={onOrderFilterChange}
                   onSortFilterChange={onSortFilterChange}
+                  onCommodityFilterChange={onCommodityFilterChange}
                 />
               </div>
 

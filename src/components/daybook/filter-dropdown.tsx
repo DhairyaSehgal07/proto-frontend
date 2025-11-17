@@ -12,15 +12,21 @@ import {
 interface FilterDropdownsProps {
   orderFilter: string;
   sortFilter: string;
+  commodityFilter: string;
+  commodities: { name: string; sizes: string[] }[];
   onOrderFilterChange: (filter: string) => void;
   onSortFilterChange: (filter: string) => void;
+  onCommodityFilterChange: (filter: string) => void;
 }
 
 export default function FilterDropdowns({
   orderFilter,
   sortFilter,
+  commodityFilter,
+  commodities,
   onOrderFilterChange,
   onSortFilterChange,
+  onCommodityFilterChange,
 }: FilterDropdownsProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
@@ -41,6 +47,28 @@ export default function FilterDropdowns({
           <DropdownMenuItem onClick={() => onOrderFilterChange('Outgoing')}>
             Outgoing
           </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline">
+            <span className="truncate">{commodityFilter}</span>
+            <ChevronDown className="h-4 w-4 flex-shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-full sm:w-auto">
+          <DropdownMenuItem onClick={() => onCommodityFilterChange('All Commodities')}>
+            All Commodities
+          </DropdownMenuItem>
+          {commodities.map((commodity) => (
+            <DropdownMenuItem
+              key={commodity.name}
+              onClick={() => onCommodityFilterChange(commodity.name)}
+            >
+              {commodity.name}
+            </DropdownMenuItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
 

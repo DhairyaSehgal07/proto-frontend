@@ -4,7 +4,11 @@ import React, { useMemo } from 'react';
 import { SearchSelector } from '../search-selector';
 import { useGetAllFarmers } from '@/services/base/store-admin/functions/useGetAllFarmers';
 
-export const FarmerSearch = () => {
+interface FarmerSearchProps {
+  onSelect?: (farmerStorageLinkId: string | '') => void;
+}
+
+export const FarmerSearch = ({ onSelect }: FarmerSearchProps) => {
   const farmersQuery = useGetAllFarmers();
 
   const farmerOptions = useMemo(() => {
@@ -12,7 +16,7 @@ export const FarmerSearch = () => {
     const farmers = farmersQuery.data?.data ?? [];
     return farmers.map((farmer) => ({
       label: farmer.name,
-      value: farmer.id,
+      value: farmer.id, // This is the farmerStorageLinkId
       // Include name, mobile, and address in searchable text
       searchableText: `${farmer.name} ${farmer.mobileNumber} ${farmer.address}`,
       // Custom rendering to show detailed info
@@ -39,6 +43,7 @@ export const FarmerSearch = () => {
       loading={farmersQuery.isLoading}
       loadingMessage="Loading farmers..."
       emptyMessage="No farmers found."
+      onSelect={onSelect}
     />
   );
 };

@@ -24,6 +24,7 @@ export default function DaybookPage() {
   const [debouncedSearch] = useDebounceValue(searchQuery, 500);
   const [orderFilter, setOrderFilter] = useState('All Orders');
   const [sortFilter, setSortFilter] = useState('Latest First');
+  const [commodityFilter, setCommodityFilter] = useState('All Commodities');
   const [currentPage, setCurrentPage] = useState(1);
   const [isPending, startTransition] = useTransition(); // ✅ Better UX for transitions
 
@@ -58,6 +59,13 @@ export default function DaybookPage() {
     });
   }, []);
 
+  const handleCommodityFilterChange = useCallback((filter: string) => {
+    startTransition(() => {
+      setCommodityFilter(filter);
+      setCurrentPage(1);
+    });
+  }, []);
+
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
@@ -74,8 +82,13 @@ export default function DaybookPage() {
   }, [debouncedSearch]);
 
   // ✅ CRITICAL: Match server prefetch params exactly
+  const commodityParam = useMemo(() => {
+    return commodityFilter === 'All Commodities' ? undefined : commodityFilter;
+  }, [commodityFilter]);
+
   const { data, isLoading, isFetching, isError, error, refetch } = useDaybook({
     type: typeFilter,
+    commodity: commodityParam,
     sortBy: sortByFilter,
     search: debouncedSearch.trim() || undefined,
     page: currentPage,
@@ -110,10 +123,13 @@ export default function DaybookPage() {
         searchQuery={searchQuery}
         orderFilter={orderFilter}
         sortFilter={sortFilter}
+        commodityFilter={commodityFilter}
+        preferences={coldStorage?.preferences}
         preferencesId={preferencesId}
         onSearchChange={handleSearchChange}
         onOrderFilterChange={handleOrderFilterChange}
         onSortFilterChange={handleSortFilterChange}
+        onCommodityFilterChange={handleCommodityFilterChange}
       />
 
       {/* ✅ IMPROVED: Show loading indicator during background fetches */}

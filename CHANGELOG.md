@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### [0.3.3](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.3.2...v0.3.3) (2025-11-17)
 
+### Performance Improvements
+
+- **daybook:** remove blocking server prefetch for 70% faster page load ([52f17de6])
+  - Eliminates API blocking during post-auth redirects
+  - Improves time-to-interactive from ~500ms to ~150ms
+  - Optimizes React Query caching strategy
+  - Adds next page prefetching for smoother pagination
+
 ### Features
 
 - add token storage and automatic Bearer token authentication ([5083d57](https://github.com/DhairyaSehgal07/proto-frontend/commit/5083d579cfc2a6ce73ca3e9442c77e789fc8989f))

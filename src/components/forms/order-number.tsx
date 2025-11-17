@@ -4,13 +4,16 @@ import React from 'react';
 interface OrderNumberProps {
   name: string;
   type: string;
+  gatePassNumber: number | undefined;
 }
 
-const OrderNumber: React.FC<OrderNumberProps> = ({ name, type }) => {
+const OrderNumber: React.FC<OrderNumberProps> = ({ name, type, gatePassNumber }) => {
+  const message = 'Please select a commodity to generate a gate pass number.';
+
   return (
     <div>
       <h1 className="text-lg font-bold">
-        {type} {name} 5
+        {gatePassNumber === undefined ? message : `${type} ${name} ${gatePassNumber}`}
       </h1>
     </div>
   );
