@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, useRef, startTransition } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, useTransition } from 'react';
 import { useDebounceValue } from 'usehooks-ts';
 import { useDaybook } from '@/services/base/store-admin/functions/useDaybookOrders';
 import { useStore } from '@/store';
@@ -25,72 +25,66 @@ export default function DaybookPage() {
   const [orderFilter, setOrderFilter] = useState('All Orders');
   const [sortFilter, setSortFilter] = useState('Latest First');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isPending, startTransition] = useTransition(); // ✅ Better UX for transitions
 
-  // Get store values for receipt voucher cards
   const { coldStorage, receiptVisibleColumns, setReceiptColumns } = useStore();
-
   const preferencesId = coldStorage?.preferences.id || '';
 
-  // Map filter strings to API values
+  // ✅ OPTIMIZED: Memoize filter mappings
   const typeFilter = useMemo(() => {
-    switch (orderFilter) {
-      case 'Incoming':
-        return 'incoming';
-      case 'Outgoing':
-        return 'outgoing';
-      default:
-        return 'all';
-    }
+    const map = {
+      Incoming: 'incoming',
+      Outgoing: 'outgoing',
+    } as const;
+    return (map[orderFilter as keyof typeof map] || 'all') as 'all' | 'incoming' | 'outgoing';
   }, [orderFilter]);
 
   const sortByFilter = useMemo(() => {
-    switch (sortFilter) {
-      case 'Oldest First':
-        return 'oldest';
-      case 'Latest First':
-      default:
-        return 'latest';
-    }
-  }, [sortFilter]);
+    return sortFilter === 'Oldest First' ? 'oldest' : 'latest';
+  }, [sortFilter]) as 'latest' | 'oldest';
 
-  // Wrapped handlers that reset page when filters change
+  // ✅ OPTIMIZED: Batch state updates with transitions
   const handleOrderFilterChange = useCallback((filter: string) => {
-    setOrderFilter(filter);
-    setCurrentPage(1);
+    startTransition(() => {
+      setOrderFilter(filter);
+      setCurrentPage(1);
+    });
   }, []);
 
   const handleSortFilterChange = useCallback((filter: string) => {
-    setSortFilter(filter);
-    setCurrentPage(1);
+    startTransition(() => {
+      setSortFilter(filter);
+      setCurrentPage(1);
+    });
   }, []);
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
 
-  // Reset page when debounced search changes
+  // ✅ OPTIMIZED: Reset page on search change
   const prevDebouncedSearch = useRef(debouncedSearch);
   useEffect(() => {
     if (prevDebouncedSearch.current !== debouncedSearch) {
       prevDebouncedSearch.current = debouncedSearch;
-      // Use startTransition to mark this as a lower-priority update
       startTransition(() => {
         setCurrentPage(1);
       });
     }
   }, [debouncedSearch]);
 
+  // ✅ CRITICAL: Match server prefetch params exactly
   const { data, isLoading, isFetching, isError, error, refetch } = useDaybook({
     type: typeFilter,
     sortBy: sortByFilter,
     search: debouncedSearch.trim() || undefined,
     page: currentPage,
-    limit: 2,
+    limit: 4,
   });
 
   const pagination = data?.pagination;
 
-  // ✅ Render loading skeleton while fetching data
+  // ✅ OPTIMIZED: Show skeleton only on initial load
   if (isLoading) {
     return (
       <div className="p-4 space-y-6">
@@ -122,8 +116,12 @@ export default function DaybookPage() {
         onSortFilterChange={handleSortFilterChange}
       />
 
-      {isFetching && !isLoading && (
-        <p className="text-xs text-muted-foreground mt-2">Refreshing data...</p>
+      {/* ✅ IMPROVED: Show loading indicator during background fetches */}
+      {(isFetching || isPending) && !isLoading && (
+        <div className="mt-2 flex items-center gap-2">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+          <p className="text-xs text-muted-foreground">Updating...</p>
+        </div>
       )}
 
       {isError && (
@@ -137,7 +135,12 @@ export default function DaybookPage() {
 
       {data && (
         <>
-          <div className="mt-4 space-y-4">
+          {/* ✅ OPTIMIZED: Add opacity during transitions for better UX */}
+          <div
+            className={`mt-4 space-y-4 transition-opacity duration-200 ${
+              isPending ? 'opacity-50' : 'opacity-100'
+            }`}
+          >
             {data.data.map((voucher) =>
               voucher.type === 'incoming' ? (
                 <ReceiptVoucherCard
@@ -153,7 +156,7 @@ export default function DaybookPage() {
             )}
           </div>
 
-          {/* Pagination */}
+          {/* ✅ OPTIMIZED: Pagination with better handlers */}
           {pagination && pagination.totalPages > 1 && (
             <div className="mt-6 flex justify-center">
               <Pagination>
@@ -164,7 +167,9 @@ export default function DaybookPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         if (pagination.hasPreviousPage && pagination.previousPage) {
-                          setCurrentPage(pagination.previousPage);
+                          startTransition(() => {
+                            setCurrentPage(pagination.previousPage!);
+                          });
                         }
                       }}
                       className={
@@ -183,7 +188,7 @@ export default function DaybookPage() {
                           href="#"
                           onClick={(e) => {
                             e.preventDefault();
-                            setCurrentPage(1);
+                            startTransition(() => setCurrentPage(1));
                           }}
                           className="cursor-pointer"
                         >
@@ -205,7 +210,7 @@ export default function DaybookPage() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
-                          setCurrentPage(pagination.previousPage!);
+                          startTransition(() => setCurrentPage(pagination.previousPage!));
                         }}
                         className="cursor-pointer"
                       >
@@ -228,7 +233,7 @@ export default function DaybookPage() {
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
-                          setCurrentPage(pagination.nextPage!);
+                          startTransition(() => setCurrentPage(pagination.nextPage!));
                         }}
                         className="cursor-pointer"
                       >
@@ -250,7 +255,7 @@ export default function DaybookPage() {
                           href="#"
                           onClick={(e) => {
                             e.preventDefault();
-                            setCurrentPage(pagination.totalPages);
+                            startTransition(() => setCurrentPage(pagination.totalPages));
                           }}
                           className="cursor-pointer"
                         >
@@ -266,7 +271,9 @@ export default function DaybookPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         if (pagination.hasNextPage && pagination.nextPage) {
-                          setCurrentPage(pagination.nextPage);
+                          startTransition(() => {
+                            setCurrentPage(pagination.nextPage!);
+                          });
                         }
                       }}
                       className={

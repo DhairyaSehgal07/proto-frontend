@@ -1,7 +1,6 @@
 'use client';
-
 import React from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { baseApi } from '@/lib/axios';
 import { AxiosError } from 'axios';
 import { toast } from 'sonner';
@@ -10,12 +9,12 @@ import type { DaybookApiResponse } from '@/types/daybook';
 import { daybookKeys, type DaybookQueryParams } from './daybook-keys';
 
 /**
- * React Query hook to fetch Daybook data (incoming/outgoing orders)
- * Optimized for high-frequency route access
+ * Optimized React Query hook for Daybook data
+ * Following Next.js 14+ and TanStack Query v5 best practices
  */
 export const useDaybook = (params?: DaybookQueryParams) => {
   const { setLoading } = useStore();
-  const defaultErrorMessage = 'Failed to fetch daybook';
+  const queryClient = useQueryClient();
 
   const query = useQuery<DaybookApiResponse, AxiosError<{ message?: string }>>({
     queryKey: daybookKeys.list(params),
@@ -29,68 +28,101 @@ export const useDaybook = (params?: DaybookQueryParams) => {
           page: params?.page,
           limit: params?.limit,
         },
-        signal, // Enable request cancellation
+        signal,
       });
-
       return data;
     },
-    // Aggressive caching for frequently accessed route
-    staleTime: 1000 * 60 * 2, // 2 minutes - data stays fresh longer
-    gcTime: 1000 * 60 * 5, // 5 minutes - keep in cache longer
 
-    // Smart refetching strategy
-    refetchOnWindowFocus: true, // Re-enable for data freshness
-    refetchOnMount: 'always', // Always fetch on mount for critical data
-    refetchOnReconnect: true,
+    // ✅ OPTIMIZED CACHING STRATEGY
+    staleTime: 1000 * 60 * 3, // 3 minutes - balance freshness vs performance
+    gcTime: 1000 * 60 * 10, // 10 minutes - longer cache retention
 
-    // Performance optimizations
-    retry: 1, // Reduce retries for faster failure feedback
-    retryDelay: 500, // Quick retry for transient failures
+    // ✅ SMART REFETCHING - Avoid unnecessary fetches
+    refetchOnWindowFocus: false, // Disable - rely on staleTime instead
+    refetchOnMount: false, // Changed from 'always' - use cached data if fresh
+    refetchOnReconnect: true, // Keep for offline recovery
 
-    // Prevent layout shifts
-    placeholderData: (previousData) => previousData,
+    // ✅ PREVENT LAYOUT SHIFTS - Use placeholderData instead of deprecated keepPreviousData
+    placeholderData: keepPreviousData,
+
+    // ✅ OPTIMIZED ERROR HANDLING
+    retry: 2, // Increased for better reliability
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+
+    // ✅ ENABLE STRUCTURAL SHARING - Prevent unnecessary re-renders
+    structuralSharing: true,
   });
 
-  // Handle loading state synchronization
-  const isLoadingOrFetching = query.isLoading || query.isFetching;
-
+  // ✅ PREFETCH NEXT PAGE - Improve pagination UX
   React.useEffect(() => {
-    setLoading(isLoadingOrFetching);
+    if (query.data?.pagination?.hasNextPage && params?.page) {
+      const nextPageParams = { ...params, page: params.page + 1 };
+      queryClient.prefetchQuery({
+        queryKey: daybookKeys.list(nextPageParams),
+        queryFn: async ({ signal }) => {
+          const { data } = await baseApi.get<DaybookApiResponse>('/store-admin/daybook', {
+            params: nextPageParams,
+            signal,
+          });
+          return data;
+        },
+        staleTime: 1000 * 60 * 3,
+      });
+    }
+  }, [query.data, params, queryClient]);
+
+  // ✅ OPTIMIZED LOADING STATE - Only show for initial load
+  React.useEffect(() => {
+    // Only set loading for initial fetch, not background refetches
+    const shouldSetLoading = query.isLoading && !query.isFetching;
+    setLoading(shouldSetLoading);
 
     return () => {
-      // Cleanup: reset loading on unmount
       setLoading(false);
     };
-  }, [isLoadingOrFetching, setLoading]);
+  }, [query.isLoading, query.isFetching, setLoading]);
 
-  // Centralized error handling
+  // ✅ IMPROVED ERROR HANDLING - Show toast only once
+  const hasShownError = React.useRef(false);
   React.useEffect(() => {
-    if (query.isError && query.error) {
+    if (query.isError && query.error && !hasShownError.current) {
       const errorMessage =
-        query.error.response?.data?.message || query.error.message || defaultErrorMessage;
+        query.error.response?.data?.message || query.error.message || 'Failed to fetch daybook';
 
-      toast.error(errorMessage);
+      toast.error(errorMessage, {
+        id: 'daybook-error', // Prevent duplicate toasts
+      });
+      hasShownError.current = true;
     }
-  }, [query.isError, query.error, defaultErrorMessage]);
+
+    if (!query.isError) {
+      hasShownError.current = false;
+    }
+  }, [query.isError, query.error]);
 
   return query;
 };
 
-// Optional: Prefetch utility for link hover/navigation optimization
+/**
+ * Prefetch utility with optimized params
+ */
 export const usePrefetchDaybook = () => {
   const queryClient = useQueryClient();
 
-  return (params?: DaybookQueryParams) => {
-    queryClient.prefetchQuery({
-      queryKey: daybookKeys.list(params),
-      queryFn: async ({ signal }) => {
-        const { data } = await baseApi.get<DaybookApiResponse>('/store-admin/daybook', {
-          params,
-          signal,
-        });
-        return data;
-      },
-      staleTime: 1000 * 60 * 2,
-    });
-  };
+  return React.useCallback(
+    (params?: DaybookQueryParams) => {
+      queryClient.prefetchQuery({
+        queryKey: daybookKeys.list(params),
+        queryFn: async ({ signal }) => {
+          const { data } = await baseApi.get<DaybookApiResponse>('/store-admin/daybook', {
+            params,
+            signal,
+          });
+          return data;
+        },
+        staleTime: 1000 * 60 * 3,
+      });
+    },
+    [queryClient]
+  );
 };

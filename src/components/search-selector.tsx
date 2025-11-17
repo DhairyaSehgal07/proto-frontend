@@ -18,26 +18,36 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 interface Option<T extends string> {
   label: string;
   value: T;
+  searchableText?: string; // Optional: text to search by (includes name, mobile, address, etc.)
+  renderLabel?: React.ReactNode; // Optional: custom rendering for the label in dropdown
 }
 
 interface SearchSelectorProps<T extends string> {
   options: Option<T>[];
   placeholder?: string;
+  searchPlaceholder?: string;
   onSelect?: (value: T | '') => void;
   className?: string;
   buttonClassName?: string;
   id?: string;
   disabled?: boolean;
+  emptyMessage?: string;
+  loading?: boolean;
+  loadingMessage?: string;
 }
 
 export function SearchSelector<T extends string>({
   options,
   placeholder = 'Select option...',
+  searchPlaceholder = 'Search...',
   onSelect,
   className,
   buttonClassName,
   id,
   disabled = false,
+  emptyMessage = 'No results found.',
+  loading = false,
+  loadingMessage = 'Loading...',
 }: SearchSelectorProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState<T | ''>('');
@@ -50,6 +60,8 @@ export function SearchSelector<T extends string>({
     onSelect?.(newValue);
     setOpen(false);
   };
+
+  const isEmpty = !loading && options.length === 0;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -67,25 +79,49 @@ export function SearchSelector<T extends string>({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className={cn('w-[200px] p-0', className)}>
+      <PopoverContent
+        className={cn('w-[200px] p-0', className)}
+        side="bottom"
+        align="start"
+        sideOffset={10}
+        avoidCollisions={false}
+        collisionPadding={0}
+      >
         <Command>
-          <CommandInput placeholder={`Search...`} className="h-9" />
+          <CommandInput placeholder={searchPlaceholder} className="h-9" />
           <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
-            <CommandGroup>
-              {options.map((opt) => (
-                <CommandItem
-                  key={opt.value}
-                  value={opt.value}
-                  onSelect={() => handleSelect(opt.value)}
-                >
-                  {opt.label}
-                  <Check
-                    className={cn('ml-auto', value === opt.value ? 'opacity-100' : 'opacity-0')}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {loading && (
+              <CommandEmpty>
+                <span className="text-xs text-muted-foreground">{loadingMessage}</span>
+              </CommandEmpty>
+            )}
+
+            {isEmpty && (
+              <CommandEmpty>
+                <span className="text-xs text-muted-foreground">{emptyMessage}</span>
+              </CommandEmpty>
+            )}
+
+            {!loading && options.length > 0 && (
+              <CommandGroup>
+                {options.map((opt) => {
+                  // Use searchableText for searching if provided, otherwise use value
+                  const searchValue = opt.searchableText || opt.value;
+                  return (
+                    <CommandItem
+                      key={opt.value}
+                      value={searchValue}
+                      onSelect={() => handleSelect(opt.value)}
+                    >
+                      {opt.renderLabel || opt.label}
+                      <Check
+                        className={cn('ml-auto', value === opt.value ? 'opacity-100' : 'opacity-0')}
+                      />
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
