@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.3.3](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.3.2...v0.3.3) (2025-11-17)
+
+### Features
+
+- add token storage and automatic Bearer token authentication ([5083d57](https://github.com/DhairyaSehgal07/proto-frontend/commit/5083d579cfc2a6ce73ca3e9442c77e789fc8989f))
+- implement Next.js API routes for authentication with cookie-based JWT ([8881b7a](https://github.com/DhairyaSehgal07/proto-frontend/commit/8881b7a2bcceecf004dbc9493ff2fb1f7373a8b6))
+
 ### [0.3.2](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.3.1...v0.3.2) (2025-11-16)
 
 ### [0.3.1](///compare/v0.3.0...v0.3.1) (2025-11-15)
