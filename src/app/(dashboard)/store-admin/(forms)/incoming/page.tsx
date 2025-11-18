@@ -31,7 +31,7 @@ import { Plus } from 'lucide-react';
 import OrderNumber from '@/components/forms/order-number';
 import { CommoditySelector } from '@/components/forms/commodity-selector';
 import { useGetGatePassNumber } from '@/services/base/incoming-orders/useGatePassNumber';
-import { Commodity, CreateIncomingOrderInput, IncomingOrderBagSize } from '@/types/incomingorder';
+import { Commodity, CreateIncomingOrderInput, IncomingOrderBagSize } from '@/types/incomingOrder';
 import { useCreateIncomingOrder } from '@/services/base/incoming-orders/useCreateIncomingOrder';
 import { toast } from 'sonner';
 import { useGetAllFarmers } from '@/services/base/store-admin/functions/useGetAllFarmers';

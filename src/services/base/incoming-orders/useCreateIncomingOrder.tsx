@@ -8,7 +8,7 @@ import { AxiosError } from 'axios';
 import type {
   CreateIncomingOrderInput,
   CreateIncomingOrderApiResponse,
-} from '@/types/incomingorder';
+} from '@/types/incomingOrder';
 
 export const useCreateIncomingOrder = () => {
   const queryClient = useQueryClient();
