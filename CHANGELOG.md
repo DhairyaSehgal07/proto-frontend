@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.5.0](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.4.0...v0.5.0) (2025-11-21)
+
+### Features
+
+- refactor daybook component and enhance incoming order form ([2969d63](https://github.com/DhairyaSehgal07/proto-frontend/commit/2969d63793842ddbd2babf2cbc2e0ec48a4a8d3b))
+
+### Bug Fixes
+
+- correct import filename ([22bd0bb](https://github.com/DhairyaSehgal07/proto-frontend/commit/22bd0bb5348f2da433b2d5849454c9866763337c))
+
 ## [0.4.0](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.3.3...v0.4.0) (2025-11-17)
 
 ### Features
