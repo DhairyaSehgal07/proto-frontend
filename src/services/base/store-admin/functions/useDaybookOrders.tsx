@@ -9,8 +9,8 @@ import type { DaybookApiResponse } from '@/types/daybook';
 import { daybookKeys, type DaybookQueryParams } from './daybook-keys';
 
 /**
- * Optimized React Query hook for Daybook data
- * Following Next.js 14+ and TanStack Query v5 best practices
+ * Daybook React Query Hook — Balanced Freshness Mode
+ * Freshness window: 15 seconds
  */
 export const useDaybook = (params?: DaybookQueryParams) => {
   const { setLoading } = useStore();
@@ -18,6 +18,7 @@ export const useDaybook = (params?: DaybookQueryParams) => {
 
   const query = useQuery<DaybookApiResponse, AxiosError<{ message?: string }>>({
     queryKey: daybookKeys.list(params),
+
     queryFn: async ({ signal }) => {
       const { data } = await baseApi.get<DaybookApiResponse>('/store-admin/daybook', {
         params: {
@@ -33,30 +34,32 @@ export const useDaybook = (params?: DaybookQueryParams) => {
       return data;
     },
 
-    // ✅ OPTIMIZED CACHING STRATEGY
-    staleTime: 1000 * 60 * 3, // 3 minutes - balance freshness vs performance
-    gcTime: 1000 * 60 * 10, // 10 minutes - longer cache retention
+    // ✅ BALANCED FRESHNESS CONFIG
+    staleTime: 15_000, // 15 seconds — fresh enough, avoids constant hits
+    gcTime: 1000 * 60 * 10, // keep old cache for 10 minutes
 
-    // ✅ SMART REFETCHING - Avoid unnecessary fetches
-    refetchOnWindowFocus: false, // Disable - rely on staleTime instead
-    refetchOnMount: false, // Changed from 'always' - use cached data if fresh
-    refetchOnReconnect: true, // Keep for offline recovery
+    // refetch logic
+    refetchOnMount: true, // refetch if stale (after 15s)
+    refetchOnWindowFocus: true, // refetch on tab focus if stale
+    refetchOnReconnect: true,
 
-    // ✅ PREVENT LAYOUT SHIFTS - Use placeholderData instead of deprecated keepPreviousData
+    // placeholder for smoother pagination
     placeholderData: keepPreviousData,
 
-    // ✅ OPTIMIZED ERROR HANDLING
-    retry: 2, // Increased for better reliability
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    // retry behavior
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
 
-    // ✅ ENABLE STRUCTURAL SHARING - Prevent unnecessary re-renders
     structuralSharing: true,
   });
 
-  // ✅ PREFETCH NEXT PAGE - Improve pagination UX
+  /**
+   * Prefetch next page for smooth pagination
+   */
   React.useEffect(() => {
     if (query.data?.pagination?.hasNextPage && params?.page) {
       const nextPageParams = { ...params, page: params.page + 1 };
+
       queryClient.prefetchQuery({
         queryKey: daybookKeys.list(nextPageParams),
         queryFn: async ({ signal }) => {
@@ -66,14 +69,15 @@ export const useDaybook = (params?: DaybookQueryParams) => {
           });
           return data;
         },
-        staleTime: 1000 * 60 * 3,
+        staleTime: 15_000,
       });
     }
   }, [query.data, params, queryClient]);
 
-  // ✅ OPTIMIZED LOADING STATE - Only show for initial load
+  /**
+   * Loading state (only for initial load)
+   */
   React.useEffect(() => {
-    // Only set loading for initial fetch, not background refetches
     const shouldSetLoading = query.isLoading && !query.isFetching;
     setLoading(shouldSetLoading);
 
@@ -82,16 +86,17 @@ export const useDaybook = (params?: DaybookQueryParams) => {
     };
   }, [query.isLoading, query.isFetching, setLoading]);
 
-  // ✅ IMPROVED ERROR HANDLING - Show toast only once
+  /**
+   * Toast errors — once per error occurrence
+   */
   const hasShownError = React.useRef(false);
+
   React.useEffect(() => {
     if (query.isError && query.error && !hasShownError.current) {
       const errorMessage =
         query.error.response?.data?.message || query.error.message || 'Failed to fetch daybook';
 
-      toast.error(errorMessage, {
-        id: 'daybook-error', // Prevent duplicate toasts
-      });
+      toast.error(errorMessage, { id: 'daybook-error' });
       hasShownError.current = true;
     }
 
@@ -104,7 +109,7 @@ export const useDaybook = (params?: DaybookQueryParams) => {
 };
 
 /**
- * Prefetch utility with optimized params
+ * Prefetch helper
  */
 export const usePrefetchDaybook = () => {
   const queryClient = useQueryClient();
@@ -120,7 +125,7 @@ export const usePrefetchDaybook = () => {
           });
           return data;
         },
-        staleTime: 1000 * 60 * 3,
+        staleTime: 15_000,
       });
     },
     [queryClient]

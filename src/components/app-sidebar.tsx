@@ -60,6 +60,7 @@ const AppSidebar = () => {
         <div className="flex items-center gap-2 px-2 py-2">
           <h1 className="text-lg font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             Coldop
+            <span className="text-[10px] ml-1 font-medium text-muted-foreground">BETA</span>
           </h1>
         </div>
       </SidebarHeader>

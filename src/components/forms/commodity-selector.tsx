@@ -1,9 +1,15 @@
 'use client';
 
-import { SearchSelector } from '../search-selector';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useStore } from '@/store';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 
 interface CommoditySelectorProps {
   id?: string;
@@ -27,20 +33,40 @@ export const CommoditySelector = ({
     );
   }, [coldStorage?.preferences?.commodities]);
 
+  const defaultValue = commodityOptions.length > 0 ? commodityOptions[0].value : undefined;
+
+  // Call onSelect with the first value when it's available
+  useEffect(() => {
+    if (defaultValue && onSelect) {
+      onSelect(defaultValue);
+    }
+  }, [defaultValue, onSelect]);
+
+  const handleValueChange = (value: string) => {
+    onSelect?.(value);
+  };
+
   return (
     <div className="space-y-3">
       <Label htmlFor={id} className="text-base font-medium">
         Select Commodity
       </Label>
-      <SearchSelector
-        id={id}
-        options={commodityOptions}
-        placeholder="Select a commodity..."
-        onSelect={onSelect}
-        className="w-full sm:w-[320px]"
-        buttonClassName="w-full sm:w-[320px] justify-between h-10"
-        disabled={disabled}
-      />
+      <Select
+        defaultValue={defaultValue}
+        onValueChange={handleValueChange}
+        disabled={disabled || commodityOptions.length === 0}
+      >
+        <SelectTrigger id={id} className="w-full sm:w-[320px] h-10">
+          <SelectValue placeholder="Select a commodity..." />
+        </SelectTrigger>
+        <SelectContent className="w-full sm:w-[320px]">
+          {commodityOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };

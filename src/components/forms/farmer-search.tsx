@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { SearchSelector } from '../search-selector';
 import { useGetAllFarmers } from '@/services/base/store-admin/functions/useGetAllFarmers';
+import { AddFarmerModal } from './add-farmer-model';
 
 interface FarmerSearchProps {
   onSelect?: (farmerStorageLinkId: string | '') => void;
@@ -33,17 +34,20 @@ export const FarmerSearch = ({ onSelect }: FarmerSearchProps) => {
   }, [farmersQuery.data?.data]);
 
   return (
-    <SearchSelector
-      id="farmer-search"
-      options={farmerOptions}
-      placeholder="Select farmer..."
-      searchPlaceholder="Search by name, mobile, or address..."
-      className="w-[280px] p-0"
-      buttonClassName="w-full sm:w-[320px] justify-between h-10 flex-shrink-0"
-      loading={farmersQuery.isLoading}
-      loadingMessage="Loading farmers..."
-      emptyMessage="No farmers found."
-      onSelect={onSelect}
-    />
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+      <SearchSelector
+        id="farmer-search"
+        options={farmerOptions}
+        placeholder="Select farmer..."
+        searchPlaceholder="Search by name, mobile, or address..."
+        className="w-[280px] p-0"
+        buttonClassName="w-full sm:w-[320px] justify-between h-10 flex-shrink-0"
+        loading={farmersQuery.isLoading}
+        loadingMessage="Loading farmers..."
+        emptyMessage="No farmers found."
+        onSelect={onSelect}
+      />
+      <AddFarmerModal farmers={farmersQuery.data?.data ?? []} />
+    </div>
   );
 };

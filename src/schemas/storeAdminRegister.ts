@@ -9,7 +9,7 @@ export const nameValidation = z
 
 export const addressValidation = z
   .string()
-  .min(5, 'Address must be at least 5 characters')
+  .min(2, 'Address must be at least 2 characters')
   .max(100, 'Address must be at most 100 characters')
   .transform(capitalizeFirstLetter);
 
