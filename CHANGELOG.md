@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.5.1](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.5.0...v0.5.1) (2025-11-27)
+
+### Features
+
+- add edit incoming order dialog and enhance form components ([912c5eb](https://github.com/DhairyaSehgal07/proto-frontend/commit/912c5eb180fd20ee1de10b5db40f2b9cf43223dd))
+
 ## [0.5.0](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.4.0...v0.5.0) (2025-11-21)
 
 ### Features
