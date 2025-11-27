@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { StoreAdmin } from '@/types/storeAdmin';
 import type { ColdStorage } from '@/types/coldStorage';
+import type { DaybookOrder } from '@/types/daybook';
 
 interface StoreState {
   admin: Omit<StoreAdmin, 'password'> | null;
@@ -17,6 +18,10 @@ interface StoreState {
   setReceiptColumns: (cols: string[]) => void;
   toggleReceiptColumn: (col: string) => void;
   resetReceiptColumns: () => void;
+
+  // Order being edited (temporary, not persisted)
+  orderToEdit: DaybookOrder | null;
+  setOrderToEdit: (order: DaybookOrder | null) => void;
 
   setAdminData: (
     admin: Omit<StoreAdmin, 'password'>,
@@ -71,6 +76,12 @@ export const useStore = create(
             'row',
           ],
         }),
+
+      /* -------------------------------
+          Order to Edit (temporary)
+      -------------------------------- */
+      orderToEdit: null,
+      setOrderToEdit: (order) => set({ orderToEdit: order }),
 
       /* -------------------------------- */
 

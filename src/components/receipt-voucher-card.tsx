@@ -9,6 +9,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { DaybookOrder } from '@/types/daybook';
 import { ColdStorage } from '@/types/coldStorage';
+import EditIncomingOrderDialog from '@/components/forms/edit-incoming-order';
 
 interface TableRow {
   variety: string;
@@ -89,16 +90,11 @@ function ReceiptVoucherCard({
   setReceiptColumns,
 }: ReceiptVoucherCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Memoize toggle handler
   const toggleExpanded = useCallback(() => {
     setIsExpanded((prev) => !prev);
-  }, []);
-
-  // Memoize edit handler (placeholder)
-  const handleEdit = useCallback(() => {
-    // TODO: Implement edit functionality for voucher
-    // Edit logic will be implemented here
   }, []);
 
   // Memoize print handler (placeholder)
@@ -264,7 +260,12 @@ function ReceiptVoucherCard({
             )}
           </Button>
           <div className="flex gap-2 w-full sm:w-auto justify-end sm:justify-start">
-            <Button variant="outline" size="sm" onClick={handleEdit} aria-label="Edit voucher">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditDialogOpen(true)}
+              aria-label="Edit voucher"
+            >
               <Edit className="w-4 h-4 text-primary" />
             </Button>
             <Button variant="outline" size="sm" onClick={handlePrint} aria-label="Print voucher">
@@ -354,6 +355,13 @@ function ReceiptVoucherCard({
           )}
         </CardContent>
       )}
+
+      {/* Edit Dialog */}
+      <EditIncomingOrderDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        order={data}
+      />
     </Card>
   );
 }

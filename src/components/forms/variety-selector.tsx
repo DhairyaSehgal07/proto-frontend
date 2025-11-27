@@ -9,6 +9,7 @@ interface VarietySelectorProps {
   onSelect?: (value: string) => void;
   disabled?: boolean;
   varieties?: string[];
+  defaultValue?: string;
 }
 
 export const VarietySelector = ({
@@ -16,6 +17,7 @@ export const VarietySelector = ({
   onSelect,
   disabled = false,
   varieties = [],
+  defaultValue,
 }: VarietySelectorProps) => {
   const varietyOptions = useMemo(() => {
     return (
@@ -39,6 +41,7 @@ export const VarietySelector = ({
         className="w-full sm:w-[320px]"
         buttonClassName="w-full sm:w-[320px] justify-between h-10"
         disabled={disabled}
+        defaultValue={defaultValue}
       />
     </div>
   );

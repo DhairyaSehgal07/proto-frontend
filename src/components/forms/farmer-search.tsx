@@ -7,9 +7,10 @@ import { AddFarmerModal } from './add-farmer-model';
 
 interface FarmerSearchProps {
   onSelect?: (farmerStorageLinkId: string | '') => void;
+  defaultValue?: string;
 }
 
-export const FarmerSearch = ({ onSelect }: FarmerSearchProps) => {
+export const FarmerSearch = ({ onSelect, defaultValue }: FarmerSearchProps) => {
   const farmersQuery = useGetAllFarmers();
 
   const farmerOptions = useMemo(() => {
@@ -46,6 +47,7 @@ export const FarmerSearch = ({ onSelect }: FarmerSearchProps) => {
         loadingMessage="Loading farmers..."
         emptyMessage="No farmers found."
         onSelect={onSelect}
+        defaultValue={defaultValue}
       />
       <AddFarmerModal farmers={farmersQuery.data?.data ?? []} />
     </div>

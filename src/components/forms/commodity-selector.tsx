@@ -9,18 +9,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useStore } from '@/store';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 
 interface CommoditySelectorProps {
   id?: string;
   onSelect?: (value: string) => void;
   disabled?: boolean;
+  defaultValue?: string;
 }
 
 export const CommoditySelector = ({
   id = 'commodity-selector',
   onSelect,
   disabled = false,
+  defaultValue: externalDefaultValue,
 }: CommoditySelectorProps) => {
   const { coldStorage } = useStore();
 
@@ -33,16 +35,27 @@ export const CommoditySelector = ({
     );
   }, [coldStorage?.preferences?.commodities]);
 
-  const defaultValue = commodityOptions.length > 0 ? commodityOptions[0].value : undefined;
+  const internalDefaultValue = commodityOptions.length > 0 ? commodityOptions[0].value : '';
+  const [selectedValue, setSelectedValue] = useState<string>(externalDefaultValue || '');
+  const hasNotifiedRef = useRef(false);
 
-  // Call onSelect with the first value when it's available
+  // Use external defaultValue if provided, otherwise use selectedValue, otherwise use internalDefaultValue
+  const displayValue = externalDefaultValue || selectedValue || internalDefaultValue;
+
+  // Call onSelect with the default value when it first becomes available
   useEffect(() => {
-    if (defaultValue && onSelect) {
-      onSelect(defaultValue);
+    const valueToUse = externalDefaultValue || internalDefaultValue;
+    if (valueToUse && !hasNotifiedRef.current && !externalDefaultValue) {
+      hasNotifiedRef.current = true;
+      onSelect?.(valueToUse);
+    } else if (externalDefaultValue && !hasNotifiedRef.current) {
+      hasNotifiedRef.current = true;
+      onSelect?.(externalDefaultValue);
     }
-  }, [defaultValue, onSelect]);
+  }, [externalDefaultValue, internalDefaultValue, onSelect]);
 
   const handleValueChange = (value: string) => {
+    setSelectedValue(value);
     onSelect?.(value);
   };
 
@@ -52,7 +65,7 @@ export const CommoditySelector = ({
         Select Commodity
       </Label>
       <Select
-        defaultValue={defaultValue}
+        value={displayValue}
         onValueChange={handleValueChange}
         disabled={disabled || commodityOptions.length === 0}
       >

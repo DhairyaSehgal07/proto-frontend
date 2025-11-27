@@ -34,6 +34,7 @@ interface SearchSelectorProps<T extends string> {
   emptyMessage?: string;
   loading?: boolean;
   loadingMessage?: string;
+  defaultValue?: T | '';
 }
 
 export function SearchSelector<T extends string>({
@@ -48,9 +49,17 @@ export function SearchSelector<T extends string>({
   emptyMessage = 'No results found.',
   loading = false,
   loadingMessage = 'Loading...',
+  defaultValue = '',
 }: SearchSelectorProps<T>) {
   const [open, setOpen] = React.useState(false);
-  const [value, setValue] = React.useState<T | ''>('');
+  const [value, setValue] = React.useState<T | ''>(defaultValue);
+
+  // Update value when defaultValue changes
+  React.useEffect(() => {
+    if (defaultValue !== undefined) {
+      setValue(defaultValue);
+    }
+  }, [defaultValue]);
 
   const selectedOption = options.find((opt) => opt.value === value);
 
