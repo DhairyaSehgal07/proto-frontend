@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { Plus, X } from 'lucide-react';
 import OrderNumber from '@/components/forms/order-number';
 import { toast } from 'sonner';
+import { useEditIncomingOrder } from '@/services/base/incoming-orders/useEditIncomingOrder';
+import type { EditIncomingOrderInput, IncomingOrderBagSize } from '@/types/incomingOrder';
 
 interface VarietyData {
   id: string;
@@ -53,6 +55,7 @@ export default function EditIncomingOrderDialog({
   const remarksRef = useRef<HTMLTextAreaElement>(null);
   const varietyIdCounterRef = useRef(1);
   const { coldStorage } = useStore();
+  const editIncomingOrderMutation = useEditIncomingOrder();
 
   // Get sizes based on selected commodity
   const sizes = useMemo(() => {
@@ -358,10 +361,106 @@ export default function EditIncomingOrderDialog({
 
   // Handle form submission
   const handleSubmit = useCallback(() => {
-    // TODO: Implement update mutation when API is available
-    toast.success('Order updated successfully!');
-    onOpenChange(false);
-  }, [onOpenChange]);
+    if (!order) {
+      toast.error('Order data is missing');
+      return;
+    }
+
+    // Basic validation
+    if (!farmerStorageLinkId) {
+      toast.error('Please select a farmer');
+      return;
+    }
+
+    if (!selectedCommodity) {
+      toast.error('Please select a commodity');
+      return;
+    }
+
+    // Filter varieties that have a name and at least one valid quantity
+    const validVarieties = varieties.filter((v) => {
+      if (!v.variety || v.variety.trim() === '') return false;
+      return Object.values(v.quantities).some((qty) => {
+        if (!qty || qty.trim() === '') return false;
+        const num = parseFloat(qty);
+        return !isNaN(num) && num > 0;
+      });
+    });
+
+    if (validVarieties.length === 0) {
+      toast.error('Please add at least one variety with quantities');
+      return;
+    }
+
+    // Transform varieties data to API format
+    const transformedVarieties = validVarieties.map((v) => {
+      // Transform bag sizes - only include sizes with valid quantities
+      const bagSizes = sizes
+        .filter((size) => {
+          const quantity = v.quantities[size];
+          return quantity && quantity.trim() !== '' && !isNaN(parseFloat(quantity));
+        })
+        .map((size) => {
+          const quantity = parseFloat(v.quantities[size]);
+          const customMarkaValue = v.customMarka?.[size]?.trim();
+          const location = v.locations?.[size] || {};
+
+          // Helper to convert empty strings to null
+          const toNullIfEmpty = (value: string | undefined | null): string | null => {
+            if (!value || value.trim() === '') return null;
+            return value.trim();
+          };
+
+          // Build bagSize object, only including customMarka if it has a value
+          const bagSize: IncomingOrderBagSize = {
+            name: size,
+            quantityInit: quantity,
+            quantityCurr: quantity,
+            approxWeight: null, // Not captured in form, set to null
+            floor: toNullIfEmpty(location.floor),
+            row: toNullIfEmpty(location.row),
+            chamber: toNullIfEmpty(location.chamber),
+            ...(customMarkaValue && customMarkaValue.trim() !== ''
+              ? { customMarka: customMarkaValue.trim() }
+              : {}),
+          };
+
+          return bagSize;
+        });
+
+      return {
+        name: v.variety,
+        bagSizes,
+      };
+    });
+
+    // Build the payload
+    const payload: EditIncomingOrderInput = {
+      id: order.id,
+      farmerStorageLinkId,
+      commodity: selectedCommodity,
+      gatePassType: order.gatePassType,
+      gatePassNumber: order.gatePassNumber,
+      remarks: remarks.trim() || null,
+      varieties: transformedVarieties,
+    };
+
+    // Submit to API
+    editIncomingOrderMutation.mutate(payload, {
+      onSuccess: () => {
+        onOpenChange(false);
+      },
+    });
+  }, [
+    order,
+    farmerStorageLinkId,
+    selectedCommodity,
+    varieties,
+    sizes,
+    remarks,
+    editIncomingOrderMutation,
+    onOpenChange,
+  ]);
 
   const steps = [
     {
@@ -500,6 +599,10 @@ export default function EditIncomingOrderDialog({
                       }
                       varietyId={varietyData.id}
                       commodity={selectedCommodity}
+                      sizes={sizes.filter((size) => {
+                        const quantity = varietyData.quantities[size];
+                        return quantity && quantity.trim() !== '' && !isNaN(parseFloat(quantity));
+                      })}
                       disabled={!varietyData.variety}
                       showApplyToAll={true}
                       inline={true}
@@ -701,8 +804,12 @@ export default function EditIncomingOrderDialog({
                     </div>
                     <div>
                       {isLastStep ? (
-                        <Button onClick={handleSubmit} className="w-full sm:w-auto">
-                          Update Order
+                        <Button
+                          onClick={handleSubmit}
+                          className="w-full sm:w-auto"
+                          disabled={editIncomingOrderMutation.isPending}
+                        >
+                          {editIncomingOrderMutation.isPending ? 'Updating...' : 'Update Order'}
                         </Button>
                       ) : (
                         <Button

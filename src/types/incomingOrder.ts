@@ -82,3 +82,21 @@ export interface CreateIncomingOrderApiResponse {
     order: IncomingOrderResponseOrder;
   };
 }
+
+export interface EditIncomingOrderInput {
+  id: string;
+  farmerStorageLinkId: string;
+  commodity: string;
+  gatePassType?: string;
+  gatePassNumber: number;
+  remarks?: string | null;
+  varieties?: IncomingOrderVariety[];
+}
+
+export interface EditIncomingOrderApiResponse {
+  success: boolean;
+  message: string;
+  data: {
+    order: IncomingOrderResponseOrder;
+  };
+}

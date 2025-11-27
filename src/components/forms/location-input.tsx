@@ -15,6 +15,7 @@ interface LocationInputSectionProps {
   onLocationChange?: (size: string, field: 'chamber' | 'floor' | 'row', value: string) => void;
   varietyId?: string;
   commodity?: string; // Selected commodity name
+  sizes?: string[]; // Optional sizes array to override commodity-based sizes
   disabled?: boolean;
   showApplyToAll?: boolean;
   containerRef?: React.RefObject<HTMLElement>;
@@ -34,6 +35,7 @@ export function LocationInputSection({
   onLocationChange,
   varietyId,
   commodity,
+  sizes: externalSizes,
   disabled = false,
   showApplyToAll = true,
   containerRef: externalContainerRef,
@@ -42,11 +44,12 @@ export function LocationInputSection({
 }: LocationInputSectionProps) {
   const { coldStorage } = useStore();
 
-  // Get sizes based on selected commodity
+  // Get sizes based on selected commodity, or use provided sizes
   const sizes = React.useMemo(() => {
+    if (externalSizes) return externalSizes;
     if (!commodity) return [];
     return coldStorage?.preferences?.commodities?.find((c) => c.name === commodity)?.sizes ?? [];
-  }, [coldStorage?.preferences?.commodities, commodity]);
+  }, [coldStorage?.preferences?.commodities, commodity, externalSizes]);
 
   // State to track location values for each bag size (only for standalone use)
   const [internalLocationValues, setInternalLocationValues] = useState<
