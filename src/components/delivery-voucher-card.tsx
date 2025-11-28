@@ -227,7 +227,7 @@ function DeliveryVoucherCard({ data }: DeliveryVoucherCardProps) {
             <div className="w-2 h-2 bg-destructive rounded-full shrink-0 mt-0.5" />
             <h2 className="text-base sm:text-lg lg:text-xl font-bold text-foreground">
               Delivery Voucher:{' '}
-              <span className="text-foreground font-bold">{data.gatePassNumber}</span>
+              <span className="text-destructive font-bold">{data.gatePassNumber}</span>
             </h2>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-2.5">
