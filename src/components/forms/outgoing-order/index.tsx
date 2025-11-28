@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useStore } from '@/store';
 import OrderNumber from '@/components/forms/order-number';
-import { CommoditySelector } from '@/components/forms/commodity-selector';
 import { useGetGatePassNumber } from '@/services/base/incoming-orders/useGatePassNumber';
 import { Commodity, CreateIncomingOrderInput } from '@/types/incomingOrder';
 import { useCreateIncomingOrder } from '@/services/base/incoming-orders/useCreateIncomingOrder';
@@ -41,7 +40,24 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DaybookOrder } from '@/types/daybook';
-import { MapPin } from 'lucide-react';
+import { MapPin, Columns } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 export default function OutgoingOrderPage() {
   const [activeStep, setActiveStep] = useState(0);
@@ -49,7 +65,15 @@ export default function OutgoingOrderPage() {
   const [farmerStorageLinkId, setFarmerStorageLinkId] = useState<string>('');
   const [selectedVariety, setSelectedVariety] = useState<string>('');
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
+  const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedCardKey, setSelectedCardKey] = useState<string | null>(null);
+  const [quantityInput, setQuantityInput] = useState<string>('');
+  const [maxQuantity, setMaxQuantity] = useState<number>(0);
+  const [quantityError, setQuantityError] = useState<string>('');
   const remarksRef = useRef<HTMLTextAreaElement>(null);
+  const autoSelectedCommodityRef = useRef<string>('');
   const { coldStorage } = useStore();
 
   const { data } = useGetGatePassNumber((selectedCommodity as Commodity) || undefined, 'outgoing');
@@ -60,6 +84,46 @@ export default function OutgoingOrderPage() {
     type: 'incoming',
     enabled: !!farmerStorageLinkId,
   });
+
+  // Extract unique commodities from farmer's incoming orders
+  const availableCommodities = useMemo(() => {
+    if (!farmerStorageLinkId || !farmerOrdersQuery.data?.data) return [];
+    const commoditySet = new Set<string>();
+    farmerOrdersQuery.data.data.forEach((order) => {
+      if (order.commodity) {
+        commoditySet.add(order.commodity);
+      }
+    });
+    return Array.from(commoditySet).sort();
+  }, [farmerStorageLinkId, farmerOrdersQuery.data]);
+
+  // Auto-select commodity if only one is available
+  useEffect(() => {
+    if (availableCommodities.length === 1) {
+      const singleCommodity = availableCommodities[0];
+      // Only auto-select if:
+      // 1. We haven't already auto-selected this commodity, AND
+      // 2. Either no commodity is selected, or the current selection was auto-selected
+      if (
+        singleCommodity !== autoSelectedCommodityRef.current &&
+        (!selectedCommodity || selectedCommodity === autoSelectedCommodityRef.current)
+      ) {
+        autoSelectedCommodityRef.current = singleCommodity;
+        setSelectedCommodity(singleCommodity);
+      }
+    } else if (availableCommodities.length === 0) {
+      autoSelectedCommodityRef.current = '';
+      setSelectedCommodity('');
+    }
+    // Reset auto-select ref when commodities change (multiple commodities available)
+    else if (availableCommodities.length > 1) {
+      // Only clear if current selection was auto-selected
+      if (selectedCommodity === autoSelectedCommodityRef.current) {
+        autoSelectedCommodityRef.current = '';
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableCommodities]);
 
   // Get incoming orders filtered by selected commodity
   const incomingOrdersByCommodity = useMemo(() => {
@@ -85,7 +149,7 @@ export default function OutgoingOrderPage() {
 
   // Handle commodity selection
   const handleCommodityChange = useCallback((commodity: string) => {
-    setSelectedCommodity(commodity);
+    setSelectedCommodity(commodity === '__all__' ? '' : commodity);
     setSelectedVariety(''); // Reset variety when commodity changes
   }, []);
 
@@ -129,6 +193,7 @@ export default function OutgoingOrderPage() {
         setSelectedCommodity('');
         setFarmerStorageLinkId('');
         setSelectedVariety('');
+        setSelectedOrders(new Set());
         setActiveStep(0);
         if (remarksRef.current) {
           remarksRef.current.value = '';
@@ -154,6 +219,9 @@ export default function OutgoingOrderPage() {
   const incomingOrders = useMemo(() => {
     let orders = incomingOrdersByCommodity;
 
+    // Filter out orders with empty varieties arrays
+    orders = orders.filter((order) => order.varieties && order.varieties.length > 0);
+
     // Filter by selected variety if one is selected
     if (selectedVariety) {
       orders = orders.filter((order) =>
@@ -170,6 +238,44 @@ export default function OutgoingOrderPage() {
     const commodity = coldStorage.preferences.commodities.find((c) => c.name === selectedCommodity);
     return commodity?.sizes ?? [];
   }, [selectedCommodity, coldStorage]);
+
+  // Initialize visible columns when bag sizes change
+  useEffect(() => {
+    if (bagSizes.length > 0) {
+      setVisibleColumns((prev) => {
+        // Only update if the bag sizes have actually changed
+        const currentSizes = new Set(bagSizes);
+        const prevSizes = new Set(prev);
+        const sizesMatch =
+          currentSizes.size === prevSizes.size &&
+          Array.from(currentSizes).every((size) => prevSizes.has(size));
+        if (!sizesMatch) {
+          return new Set(bagSizes);
+        }
+        return prev;
+      });
+    } else {
+      setVisibleColumns(new Set());
+    }
+  }, [bagSizes]);
+
+  // Filter bag sizes to only show visible columns
+  const visibleBagSizes = useMemo(() => {
+    return bagSizes.filter((size) => visibleColumns.has(size));
+  }, [bagSizes, visibleColumns]);
+
+  // Handle column visibility toggle
+  const handleColumnToggle = useCallback((size: string) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(size)) {
+        next.delete(size);
+      } else {
+        next.add(size);
+      }
+      return next;
+    });
+  }, []);
 
   // Get data for a specific order and size combination
   const getOrderSizeData = useCallback((order: DaybookOrder, size: string) => {
@@ -210,6 +316,105 @@ export default function OutgoingOrderPage() {
     });
   }, []);
 
+  // Generate unique key for a card
+  const getCardKey = useCallback(
+    (orderId: string, size: string, variety: string, location: string) => {
+      return `${orderId}-${size}-${variety}-${location}`;
+    },
+    []
+  );
+
+  // Handle card click to open dialog
+  const handleCardClick = useCallback(
+    (orderId: string, size: string, variety: string, location: string, currentQuantity: number) => {
+      const cardKey = getCardKey(orderId, size, variety, location);
+      setSelectedCardKey(cardKey);
+      setMaxQuantity(currentQuantity);
+      const existingQuantity = quantities.get(cardKey);
+      setQuantityInput(existingQuantity ? existingQuantity.toString() : '');
+      setQuantityError('');
+      setDialogOpen(true);
+    },
+    [getCardKey, quantities]
+  );
+
+  // Handle quantity input change with validation
+  const handleQuantityInputChange = useCallback(
+    (value: string) => {
+      setQuantityError('');
+
+      // Allow empty input or just a decimal point
+      if (value === '' || value === '.') {
+        setQuantityInput(value);
+        return;
+      }
+
+      // Parse the input value
+      const quantity = parseFloat(value);
+
+      // If not a valid number, don't update (prevent invalid input)
+      if (isNaN(quantity)) {
+        return;
+      }
+
+      // Check if value exceeds maximum
+      if (quantity > maxQuantity) {
+        setQuantityInput(value);
+        setQuantityError(`Quantity cannot exceed ${maxQuantity.toFixed(1)}`);
+        return;
+      }
+
+      if (quantity <= 0) {
+        setQuantityInput(value);
+        setQuantityError('Quantity must be greater than 0');
+        return;
+      }
+
+      // Valid input
+      setQuantityInput(value);
+    },
+    [maxQuantity]
+  );
+
+  // Handle quantity submission
+  const handleQuantitySubmit = useCallback(() => {
+    if (!selectedCardKey) return;
+
+    const quantity = parseFloat(quantityInput);
+    if (isNaN(quantity) || quantity <= 0) {
+      setQuantityError('Please enter a valid quantity greater than 0');
+      toast.error('Please enter a valid quantity greater than 0');
+      return;
+    }
+
+    if (quantity > maxQuantity) {
+      setQuantityError(`Quantity cannot exceed ${maxQuantity.toFixed(1)}`);
+      toast.error(`Quantity cannot exceed ${maxQuantity.toFixed(1)}`);
+      return;
+    }
+
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      next.set(selectedCardKey, quantity);
+      return next;
+    });
+
+    setDialogOpen(false);
+    setSelectedCardKey(null);
+    setQuantityInput('');
+    setQuantityError('');
+    setMaxQuantity(0);
+  }, [selectedCardKey, quantityInput, maxQuantity]);
+
+  // Handle dialog close
+  const handleDialogClose = useCallback(() => {
+    setDialogOpen(false);
+    setSelectedCardKey(null);
+    setQuantityInput('');
+    setQuantityError('');
+    setMaxQuantity(0);
+  }, []);
+
   const steps = [
     {
       title: 'Info',
@@ -228,13 +433,50 @@ export default function OutgoingOrderPage() {
                 <FarmerSearch
                   onSelect={(id) => {
                     setFarmerStorageLinkId(id);
+                    // Reset commodity and variety when farmer changes
+                    setSelectedCommodity('');
+                    setSelectedVariety('');
+                    setSelectedOrders(new Set());
+                    setVisibleColumns(new Set());
+                    autoSelectedCommodityRef.current = '';
                   }}
                 />
               </div>
             </div>
           </div>
 
-          <CommoditySelector onSelect={handleCommodityChange} />
+          {/* Commodity Selector - Only show after farmer is selected */}
+          {farmerStorageLinkId && (
+            <div className="space-y-3">
+              <Label htmlFor="commodity" className="text-base font-medium">
+                Select Commodity
+              </Label>
+              {farmerOrdersQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading commodities...</p>
+              ) : availableCommodities.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No commodities found for this farmer
+                </p>
+              ) : (
+                <Select
+                  value={selectedCommodity || '__all__'}
+                  onValueChange={handleCommodityChange}
+                >
+                  <SelectTrigger id="commodity">
+                    <SelectValue placeholder="Choose a commodity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Commodities</SelectItem>
+                    {availableCommodities.map((commodity) => (
+                      <SelectItem key={commodity} value={commodity}>
+                        {commodity}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           {/* Variety Selector */}
           {selectedCommodity && availableVarieties.length > 0 && (
@@ -265,14 +507,41 @@ export default function OutgoingOrderPage() {
           {farmerStorageLinkId && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Incoming Orders</CardTitle>
-                <CardDescription>
-                  {selectedCommodity
-                    ? selectedVariety
-                      ? `Showing orders for ${selectedCommodity} - ${selectedVariety}`
-                      : `Showing orders for ${selectedCommodity}`
-                    : 'Select a commodity to view orders by bag size'}
-                </CardDescription>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <CardTitle className="text-xl">Incoming Orders</CardTitle>
+                    <CardDescription>
+                      {selectedCommodity
+                        ? selectedVariety
+                          ? `Showing orders for ${selectedCommodity} - ${selectedVariety}`
+                          : `Showing orders for ${selectedCommodity}`
+                        : 'Select a commodity to view orders by bag size'}
+                    </CardDescription>
+                  </div>
+                  {selectedCommodity && bagSizes.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Columns className="h-4 w-4" />
+                          Columns
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {bagSizes.map((size) => (
+                          <DropdownMenuCheckboxItem
+                            key={size}
+                            checked={visibleColumns.has(size)}
+                            onCheckedChange={() => handleColumnToggle(size)}
+                          >
+                            {size}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {farmerOrdersQuery.isLoading && (
@@ -295,88 +564,130 @@ export default function OutgoingOrderPage() {
                   selectedCommodity &&
                   bagSizes.length > 0 && (
                     <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[120px]">R. Voucher</TableHead>
-                            {bagSizes.map((size) => (
-                              <TableHead key={size}>{size}</TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {incomingOrders.length === 0 ? (
-                            <TableRow>
-                              <TableCell
-                                colSpan={bagSizes.length + 1}
-                                className="text-center text-muted-foreground"
-                              >
-                                No incoming orders found
-                              </TableCell>
+                      {visibleBagSizes.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p className="text-sm">
+                            No columns selected. Use the Columns button to show columns.
+                          </p>
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                              <TableHead className="w-[120px] font-medium text-foreground/80">
+                                R. Voucher
+                              </TableHead>
+                              {visibleBagSizes.map((size) => (
+                                <TableHead key={size} className="font-medium text-foreground/80">
+                                  {size}
+                                </TableHead>
+                              ))}
                             </TableRow>
-                          ) : (
-                            incomingOrders.map((order) => (
-                              <TableRow key={order.id}>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox
-                                      checked={selectedOrders.has(order.id)}
-                                      onCheckedChange={() => handleOrderToggle(order.id)}
-                                    />
-                                    <span className="font-semibold">#{order.gatePassNumber}</span>
-                                  </div>
+                          </TableHeader>
+                          <TableBody>
+                            {incomingOrders.length === 0 ? (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={visibleBagSizes.length + 1}
+                                  className="text-center text-muted-foreground/70 py-8"
+                                >
+                                  No incoming orders found
                                 </TableCell>
-                                {bagSizes.map((size) => {
-                                  const sizeData = getOrderSizeData(order, size);
-                                  return (
-                                    <TableCell key={size}>
-                                      {sizeData.length === 0 ? (
-                                        <div className="h-16 bg-muted rounded-md border border-border" />
-                                      ) : (
-                                        <div className="space-y-2">
-                                          {sizeData.map((data, idx) => (
-                                            <div
-                                              key={idx}
-                                              className={cn(
-                                                'p-2 rounded-md border',
-                                                selectedOrders.has(order.id)
-                                                  ? 'bg-primary/10 border-primary'
-                                                  : 'bg-card border-border'
-                                              )}
-                                            >
-                                              <div className="flex items-start justify-between gap-2">
-                                                <div className="flex-1 min-w-0">
-                                                  <p className="text-xs text-muted-foreground truncate">
-                                                    {data.variety}
-                                                  </p>
-                                                  <div className="flex items-center gap-1 mt-1">
-                                                    <MapPin className="h-3 w-3 text-destructive shrink-0" />
-                                                    <p className="text-xs text-muted-foreground truncate">
-                                                      {data.location}
-                                                    </p>
+                              </TableRow>
+                            ) : (
+                              incomingOrders.map((order) => (
+                                <TableRow
+                                  key={order.id}
+                                  className="hover:bg-transparent border-border/40"
+                                >
+                                  <TableCell className="py-3">
+                                    <div className="flex items-center gap-2.5">
+                                      <Checkbox
+                                        checked={selectedOrders.has(order.id)}
+                                        onCheckedChange={() => handleOrderToggle(order.id)}
+                                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                      />
+                                      <span className="font-medium text-foreground/90">
+                                        #{order.gatePassNumber}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  {visibleBagSizes.map((size) => {
+                                    const sizeData = getOrderSizeData(order, size);
+                                    return (
+                                      <TableCell key={size} className="py-2">
+                                        {sizeData.length === 0 ? (
+                                          <div className="h-20 bg-muted/30 rounded-lg border border-border/40" />
+                                        ) : (
+                                          <div className="space-y-2.5">
+                                            {sizeData.map((data, idx) => {
+                                              const cardKey = getCardKey(
+                                                order.id,
+                                                size,
+                                                data.variety,
+                                                data.location
+                                              );
+                                              const quantity = quantities.get(cardKey);
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  className={cn(
+                                                    'group relative p-3 rounded-lg border cursor-pointer transition-all duration-200',
+                                                    'hover:bg-muted/50 hover:border-muted-foreground/20 hover:shadow-sm',
+                                                    selectedOrders.has(order.id)
+                                                      ? 'bg-primary/5 border-primary/30 shadow-sm'
+                                                      : 'bg-card/50 border-border/60'
+                                                  )}
+                                                  onClick={() =>
+                                                    handleCardClick(
+                                                      order.id,
+                                                      size,
+                                                      data.variety,
+                                                      data.location,
+                                                      data.quantityCurr
+                                                    )
+                                                  }
+                                                >
+                                                  {quantity !== undefined && (
+                                                    <div className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-green-600 dark:bg-green-500 text-white flex items-center justify-center text-[10px] font-semibold shadow-lg ring-2 ring-background z-10">
+                                                      {quantity.toFixed(1)}
+                                                    </div>
+                                                  )}
+                                                  <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex-1 min-w-0">
+                                                      <p className="text-sm font-medium text-foreground/90 truncate mb-1.5">
+                                                        {data.variety}
+                                                      </p>
+                                                      <div className="flex items-center gap-1.5">
+                                                        <MapPin className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+                                                        <p className="text-xs text-muted-foreground/80 truncate">
+                                                          {data.location}
+                                                        </p>
+                                                      </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                      <p className="text-lg font-semibold text-foreground leading-none">
+                                                        {data.quantityCurr.toFixed(1)}
+                                                      </p>
+                                                      <p className="text-xs text-muted-foreground/70 mt-0.5">
+                                                        /{data.quantityInit.toFixed(1)}
+                                                      </p>
+                                                    </div>
                                                   </div>
                                                 </div>
-                                                <div className="text-right shrink-0">
-                                                  <p className="text-base font-bold">
-                                                    {data.quantityCurr.toFixed(1)}
-                                                  </p>
-                                                  <p className="text-xs text-muted-foreground">
-                                                    /{data.quantityInit.toFixed(1)}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </TableCell>
-                                  );
-                                })}
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </TableCell>
+                                    );
+                                  })}
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      )}
                     </div>
                   )}
               </CardContent>
@@ -482,7 +793,7 @@ export default function OutgoingOrderPage() {
   }, [activeStep]);
 
   return (
-    <div className="flex w-full max-w-3xl flex-col gap-8 mx-auto px-4">
+    <div className="flex w-full max-w-full flex-col gap-8 mx-auto px-4">
       <Tabs value={steps[activeStep].title}>
         {/* ---- Step Titles ---- */}
         <TabsList className={cn('grid w-full', `grid-cols-${steps.length}`)}>
@@ -546,6 +857,68 @@ export default function OutgoingOrderPage() {
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* Quantity Input Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Enter quantity to remove</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground/80">
+              Specify the amount you wish to remove from this item.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label htmlFor="quantity-input" className="text-sm font-medium text-foreground/90">
+                  Quantity
+                </label>
+                {maxQuantity > 0 && (
+                  <span className="text-xs text-muted-foreground/70">
+                    Max: {maxQuantity.toFixed(1)}
+                  </span>
+                )}
+              </div>
+              <Input
+                id="quantity-input"
+                type="number"
+                placeholder="0.0"
+                value={quantityInput}
+                onChange={(e) => handleQuantityInputChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!quantityError) {
+                      handleQuantitySubmit();
+                    }
+                  }
+                }}
+                autoFocus
+                min="0"
+                max={maxQuantity}
+                step="0.1"
+                className={cn(
+                  'text-base',
+                  quantityError && 'border-destructive focus-visible:ring-destructive/20'
+                )}
+              />
+              {quantityError && <p className="text-xs text-destructive mt-1">{quantityError}</p>}
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleDialogClose} className="sm:min-w-[80px]">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleQuantitySubmit}
+              className="sm:min-w-[80px]"
+              disabled={!!quantityError || !quantityInput || parseFloat(quantityInput) <= 0}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
