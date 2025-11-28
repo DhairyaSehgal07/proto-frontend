@@ -1,0 +1,439 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useStore } from '@/store';
+import { Commodity, CreateIncomingOrderInput } from '@/types/incomingOrder';
+import { useGetGatePassNumber } from '@/services/base/incoming-orders/useGatePassNumber';
+import { useCreateIncomingOrder } from '@/services/base/incoming-orders/useCreateIncomingOrder';
+import { useGetAllFarmers } from '@/services/base/store-admin/functions/useGetAllFarmers';
+import { useGetOrdersOfFarmer } from '@/services/base/store-admin/functions/useGetOrdersOfFarmer';
+import { DaybookOrder } from '@/types/daybook';
+import { toast } from 'sonner';
+
+export function useOutgoingOrder() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [selectedCommodity, setSelectedCommodity] = useState<string>('');
+  const [farmerStorageLinkId, setFarmerStorageLinkId] = useState<string>('');
+  const [selectedVariety, setSelectedVariety] = useState<string>('');
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
+  const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedCardKey, setSelectedCardKey] = useState<string | null>(null);
+  const [quantityInput, setQuantityInput] = useState<string>('');
+  const [maxQuantity, setMaxQuantity] = useState<number>(0);
+  const [quantityError, setQuantityError] = useState<string>('');
+  const remarksRef = useRef<HTMLTextAreaElement>(null);
+  const autoSelectedCommodityRef = useRef<string>('');
+  const { coldStorage } = useStore();
+
+  const { data } = useGetGatePassNumber((selectedCommodity as Commodity) || undefined, 'outgoing');
+  const createIncomingOrderMutation = useCreateIncomingOrder();
+  const farmersQuery = useGetAllFarmers();
+  const farmerOrdersQuery = useGetOrdersOfFarmer({
+    farmerStorageLinkId,
+    type: 'incoming',
+    enabled: !!farmerStorageLinkId,
+  });
+
+  // Extract unique commodities from farmer's incoming orders
+  const availableCommodities = useMemo(() => {
+    if (!farmerStorageLinkId || !farmerOrdersQuery.data?.data) return [];
+    const commoditySet = new Set<string>();
+    farmerOrdersQuery.data.data.forEach((order) => {
+      if (order.commodity) {
+        commoditySet.add(order.commodity);
+      }
+    });
+    return Array.from(commoditySet).sort();
+  }, [farmerStorageLinkId, farmerOrdersQuery.data]);
+
+  // Auto-select commodity if only one is available
+  useEffect(() => {
+    if (availableCommodities.length === 1) {
+      const singleCommodity = availableCommodities[0];
+      if (
+        singleCommodity !== autoSelectedCommodityRef.current &&
+        (!selectedCommodity || selectedCommodity === autoSelectedCommodityRef.current)
+      ) {
+        autoSelectedCommodityRef.current = singleCommodity;
+        setSelectedCommodity(singleCommodity);
+      }
+    } else if (availableCommodities.length === 0) {
+      autoSelectedCommodityRef.current = '';
+      setSelectedCommodity('');
+    } else if (availableCommodities.length > 1) {
+      if (selectedCommodity === autoSelectedCommodityRef.current) {
+        autoSelectedCommodityRef.current = '';
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableCommodities]);
+
+  // Get incoming orders filtered by selected commodity
+  const incomingOrdersByCommodity = useMemo(() => {
+    if (!farmerOrdersQuery.data?.data) return [];
+    const orders = farmerOrdersQuery.data.data;
+    if (selectedCommodity) {
+      return orders.filter((order) => order.commodity === selectedCommodity);
+    }
+    return [];
+  }, [farmerOrdersQuery.data, selectedCommodity]);
+
+  // Extract unique varieties from incoming orders
+  const availableVarieties = useMemo(() => {
+    if (!selectedCommodity || incomingOrdersByCommodity.length === 0) return [];
+    const varietySet = new Set<string>();
+    incomingOrdersByCommodity.forEach((order) => {
+      order.varieties.forEach((variety) => {
+        varietySet.add(variety.name);
+      });
+    });
+    return Array.from(varietySet).sort();
+  }, [incomingOrdersByCommodity, selectedCommodity]);
+
+  // Handle commodity selection
+  const handleCommodityChange = useCallback((commodity: string) => {
+    setSelectedCommodity(commodity === '__all__' ? '' : commodity);
+    setSelectedVariety(''); // Reset variety when commodity changes
+  }, []);
+
+  // Get farmer name from farmerStorageLinkId
+  const selectedFarmer = useMemo(() => {
+    if (!farmerStorageLinkId || !farmersQuery.data?.data) return null;
+    return farmersQuery.data?.data.find((f) => f.id === farmerStorageLinkId) ?? null;
+  }, [farmerStorageLinkId, farmersQuery.data?.data]);
+
+  // Get incoming orders filtered by selected commodity and variety
+  const incomingOrders = useMemo(() => {
+    let orders = incomingOrdersByCommodity;
+
+    // Filter out orders with empty varieties arrays
+    orders = orders.filter((order) => order.varieties && order.varieties.length > 0);
+
+    // Filter by selected variety if one is selected
+    if (selectedVariety) {
+      orders = orders.filter((order) =>
+        order.varieties.some((variety) => variety.name === selectedVariety)
+      );
+    }
+
+    return orders;
+  }, [incomingOrdersByCommodity, selectedVariety]);
+
+  // Get bag sizes for selected commodity from preferences
+  const bagSizes = useMemo(() => {
+    if (!selectedCommodity || !coldStorage?.preferences?.commodities) return [];
+    const commodity = coldStorage.preferences.commodities.find((c) => c.name === selectedCommodity);
+    return commodity?.sizes ?? [];
+  }, [selectedCommodity, coldStorage]);
+
+  // Initialize visible columns when bag sizes change
+  useEffect(() => {
+    if (bagSizes.length > 0) {
+      setVisibleColumns((prev) => {
+        const currentSizes = new Set(bagSizes);
+        const prevSizes = new Set(prev);
+        const sizesMatch =
+          currentSizes.size === prevSizes.size &&
+          Array.from(currentSizes).every((size) => prevSizes.has(size));
+        if (!sizesMatch) {
+          return new Set(bagSizes);
+        }
+        return prev;
+      });
+    } else {
+      setVisibleColumns(new Set());
+    }
+  }, [bagSizes]);
+
+  // Filter bag sizes to only show visible columns
+  const visibleBagSizes = useMemo(() => {
+    return bagSizes.filter((size) => visibleColumns.has(size));
+  }, [bagSizes, visibleColumns]);
+
+  // Handle column visibility toggle
+  const handleColumnToggle = useCallback((size: string) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(size)) {
+        next.delete(size);
+      } else {
+        next.add(size);
+      }
+      return next;
+    });
+  }, []);
+
+  // Get data for a specific order and size combination
+  const getOrderSizeData = useCallback((order: DaybookOrder, size: string) => {
+    const matchingData: Array<{
+      variety: string;
+      quantityCurr: number;
+      quantityInit: number;
+      location: string;
+    }> = [];
+
+    order.varieties.forEach((variety) => {
+      variety.bagSizes.forEach((bagSize) => {
+        if (bagSize.name === size && bagSize.quantityCurr > 0) {
+          matchingData.push({
+            variety: variety.name,
+            quantityCurr: bagSize.quantityCurr,
+            quantityInit: bagSize.quantityInit,
+            location: `${bagSize.chamber}/${bagSize.floor}/${bagSize.row}`,
+          });
+        }
+      });
+    });
+
+    return matchingData;
+  }, []);
+
+  // Handle order selection
+  const handleOrderToggle = useCallback((orderId: string) => {
+    setSelectedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Generate unique key for a card
+  const getCardKey = useCallback(
+    (orderId: string, size: string, variety: string, location: string) => {
+      return `${orderId}-${size}-${variety}-${location}`;
+    },
+    []
+  );
+
+  // Handle card click to open dialog
+  const handleCardClick = useCallback(
+    (orderId: string, size: string, variety: string, location: string, currentQuantity: number) => {
+      const cardKey = getCardKey(orderId, size, variety, location);
+      setSelectedCardKey(cardKey);
+      setMaxQuantity(currentQuantity);
+      const existingQuantity = quantities.get(cardKey);
+      setQuantityInput(existingQuantity ? existingQuantity.toString() : '');
+      setQuantityError('');
+      setDialogOpen(true);
+    },
+    [getCardKey, quantities]
+  );
+
+  // Handle quantity input change with validation
+  const handleQuantityInputChange = useCallback(
+    (value: string) => {
+      setQuantityError('');
+
+      if (value === '' || value === '.') {
+        setQuantityInput(value);
+        return;
+      }
+
+      const quantity = parseFloat(value);
+
+      if (isNaN(quantity)) {
+        return;
+      }
+
+      if (quantity > maxQuantity) {
+        setQuantityInput(value);
+        setQuantityError(`Quantity cannot exceed ${maxQuantity.toFixed(1)}`);
+        return;
+      }
+
+      if (quantity <= 0) {
+        setQuantityInput(value);
+        setQuantityError('Quantity must be greater than 0');
+        return;
+      }
+
+      setQuantityInput(value);
+    },
+    [maxQuantity]
+  );
+
+  // Handle quantity submission
+  const handleQuantitySubmit = useCallback(() => {
+    if (!selectedCardKey) return;
+
+    const quantity = parseFloat(quantityInput);
+    if (isNaN(quantity) || quantity <= 0) {
+      setQuantityError('Please enter a valid quantity greater than 0');
+      toast.error('Please enter a valid quantity greater than 0');
+      return;
+    }
+
+    if (quantity > maxQuantity) {
+      setQuantityError(`Quantity cannot exceed ${maxQuantity.toFixed(1)}`);
+      toast.error(`Quantity cannot exceed ${maxQuantity.toFixed(1)}`);
+      return;
+    }
+
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      next.set(selectedCardKey, quantity);
+      return next;
+    });
+
+    setDialogOpen(false);
+    setSelectedCardKey(null);
+    setQuantityInput('');
+    setQuantityError('');
+    setMaxQuantity(0);
+  }, [selectedCardKey, quantityInput, maxQuantity]);
+
+  // Handle quantity removal
+  const handleQuantityRemove = useCallback(() => {
+    if (!selectedCardKey) return;
+
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      next.delete(selectedCardKey);
+      return next;
+    });
+
+    setDialogOpen(false);
+    setSelectedCardKey(null);
+    setQuantityInput('');
+    setQuantityError('');
+    setMaxQuantity(0);
+    toast.success('Quantity removed');
+  }, [selectedCardKey]);
+
+  // Handle quick remove from badge
+  const handleQuickRemove = useCallback((e: React.MouseEvent, cardKey: string) => {
+    e.stopPropagation();
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      next.delete(cardKey);
+      return next;
+    });
+    toast.success('Quantity removed');
+  }, []);
+
+  // Handle dialog close
+  const handleDialogClose = useCallback(() => {
+    setDialogOpen(false);
+    setSelectedCardKey(null);
+    setQuantityInput('');
+    setQuantityError('');
+    setMaxQuantity(0);
+  }, []);
+
+  // Handle farmer selection
+  const handleFarmerSelect = useCallback((id: string) => {
+    setFarmerStorageLinkId(id);
+    setSelectedCommodity('');
+    setSelectedVariety('');
+    setSelectedOrders(new Set());
+    setVisibleColumns(new Set());
+    autoSelectedCommodityRef.current = '';
+  }, []);
+
+  // Handle submit
+  const handleSubmit = useCallback(() => {
+    const gatePassNumber = data?.data?.nextGatePassNumber;
+    if (!gatePassNumber) {
+      toast.error('Gate pass number not available. Please select a commodity.');
+      return;
+    }
+
+    if (!farmerStorageLinkId) {
+      toast.error('Please select a farmer.');
+      return;
+    }
+
+    if (!selectedCommodity) {
+      toast.error('Please select a commodity.');
+      return;
+    }
+
+    if (!selectedVariety) {
+      toast.error('Please select a variety.');
+      return;
+    }
+
+    const remarks = remarksRef.current?.value || null;
+
+    const payload: CreateIncomingOrderInput = {
+      farmerStorageLinkId,
+      commodity: selectedCommodity as Commodity,
+      gatePassNumber,
+      remarks: remarks?.trim() || null,
+      varieties: [],
+    };
+
+    createIncomingOrderMutation.mutate(payload, {
+      onSuccess: () => {
+        setSelectedCommodity('');
+        setFarmerStorageLinkId('');
+        setSelectedVariety('');
+        setSelectedOrders(new Set());
+        setActiveStep(0);
+        if (remarksRef.current) {
+          remarksRef.current.value = '';
+        }
+      },
+    });
+  }, [
+    farmerStorageLinkId,
+    selectedCommodity,
+    selectedVariety,
+    data?.data?.nextGatePassNumber,
+    remarksRef,
+    createIncomingOrderMutation,
+  ]);
+
+  return {
+    // State
+    activeStep,
+    setActiveStep,
+    selectedCommodity,
+    setSelectedCommodity,
+    farmerStorageLinkId,
+    selectedVariety,
+    setSelectedVariety,
+    selectedOrders,
+    visibleColumns,
+    quantities,
+    dialogOpen,
+    selectedCardKey,
+    quantityInput,
+    maxQuantity,
+    quantityError,
+    remarksRef,
+    autoSelectedCommodityRef,
+
+    // Data
+    data,
+    createIncomingOrderMutation,
+    farmersQuery,
+    farmerOrdersQuery,
+    availableCommodities,
+    incomingOrdersByCommodity,
+    availableVarieties,
+    selectedFarmer,
+    incomingOrders,
+    bagSizes,
+    visibleBagSizes,
+
+    // Handlers
+    handleCommodityChange,
+    handleFarmerSelect,
+    handleSubmit,
+    handleColumnToggle,
+    getOrderSizeData,
+    handleOrderToggle,
+    getCardKey,
+    handleCardClick,
+    handleQuantityInputChange,
+    handleQuantitySubmit,
+    handleQuantityRemove,
+    handleQuickRemove,
+    handleDialogClose,
+  };
+}
