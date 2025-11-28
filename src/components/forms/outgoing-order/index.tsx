@@ -40,7 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DaybookOrder } from '@/types/daybook';
-import { MapPin, Columns } from 'lucide-react';
+import { MapPin, Columns, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -406,6 +406,35 @@ export default function OutgoingOrderPage() {
     setMaxQuantity(0);
   }, [selectedCardKey, quantityInput, maxQuantity]);
 
+  // Handle quantity removal
+  const handleQuantityRemove = useCallback(() => {
+    if (!selectedCardKey) return;
+
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      next.delete(selectedCardKey);
+      return next;
+    });
+
+    setDialogOpen(false);
+    setSelectedCardKey(null);
+    setQuantityInput('');
+    setQuantityError('');
+    setMaxQuantity(0);
+    toast.success('Quantity removed');
+  }, [selectedCardKey]);
+
+  // Handle quick remove from badge
+  const handleQuickRemove = useCallback((e: React.MouseEvent, cardKey: string) => {
+    e.stopPropagation(); // Prevent opening the dialog
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      next.delete(cardKey);
+      return next;
+    });
+    toast.success('Quantity removed');
+  }, []);
+
   // Handle dialog close
   const handleDialogClose = useCallback(() => {
     setDialogOpen(false);
@@ -628,13 +657,16 @@ export default function OutgoingOrderPage() {
                                                 data.location
                                               );
                                               const quantity = quantities.get(cardKey);
+                                              const isActive =
+                                                selectedOrders.has(order.id) ||
+                                                quantity !== undefined;
                                               return (
                                                 <div
                                                   key={idx}
                                                   className={cn(
                                                     'group relative p-3 rounded-lg border cursor-pointer transition-all duration-200',
                                                     'hover:bg-muted/50 hover:border-muted-foreground/20 hover:shadow-sm',
-                                                    selectedOrders.has(order.id)
+                                                    isActive
                                                       ? 'bg-primary/5 border-primary/30 shadow-sm'
                                                       : 'bg-card/50 border-border/60'
                                                   )}
@@ -649,8 +681,19 @@ export default function OutgoingOrderPage() {
                                                   }
                                                 >
                                                   {quantity !== undefined && (
-                                                    <div className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-green-600 dark:bg-green-500 text-white flex items-center justify-center text-[10px] font-semibold shadow-lg ring-2 ring-background z-10">
-                                                      {quantity.toFixed(1)}
+                                                    <div className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-green-600 dark:bg-green-500 text-white flex items-center justify-center text-[10px] font-semibold shadow-lg ring-2 ring-background z-10 group/badge">
+                                                      <span className="group-hover/badge:hidden">
+                                                        {quantity.toFixed(1)}
+                                                      </span>
+                                                      <button
+                                                        onClick={(e) =>
+                                                          handleQuickRemove(e, cardKey)
+                                                        }
+                                                        className="hidden group-hover/badge:flex items-center justify-center w-full h-full rounded-full hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+                                                        aria-label="Remove quantity"
+                                                      >
+                                                        <X className="h-3 w-3" />
+                                                      </button>
                                                     </div>
                                                   )}
                                                   <div className="flex items-start justify-between gap-3">
@@ -906,6 +949,15 @@ export default function OutgoingOrderPage() {
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
+            {selectedCardKey && quantities.has(selectedCardKey) && (
+              <Button
+                variant="destructive"
+                onClick={handleQuantityRemove}
+                className="sm:min-w-[80px]"
+              >
+                Remove
+              </Button>
+            )}
             <Button variant="outline" onClick={handleDialogClose} className="sm:min-w-[80px]">
               Cancel
             </Button>

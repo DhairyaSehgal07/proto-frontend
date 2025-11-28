@@ -218,8 +218,18 @@ function DeliveryVoucherCard({ data }: DeliveryVoucherCardProps) {
     [data.varieties]
   );
 
+  // Check if voucher is null (no varieties)
+  const isNullVoucher = useMemo(
+    () => !data.varieties || data.varieties.length === 0,
+    [data.varieties]
+  );
+
   return (
-    <Card className="overflow-hidden">
+    <Card
+      className={`overflow-hidden transition-opacity ${
+        isNullVoucher && !isExpanded ? 'opacity-50' : ''
+      }`}
+    >
       <CardHeader className="pb-4 sm:pb-6">
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-4 mb-5 sm:mb-6">
@@ -229,6 +239,11 @@ function DeliveryVoucherCard({ data }: DeliveryVoucherCardProps) {
               Delivery Voucher:{' '}
               <span className="text-destructive font-bold">{data.gatePassNumber}</span>
             </h2>
+            {isNullVoucher && !isExpanded && (
+              <span className="ml-2 px-2 py-0.5 text-xs text-muted-foreground/70 bg-muted/50 rounded border border-border/50">
+                Null
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-2.5">
             <div className="px-3 py-1.5 bg-muted rounded-full text-xs sm:text-sm text-muted-foreground">
