@@ -189,25 +189,59 @@ export function useOutgoingOrder() {
     return matchingData;
   }, []);
 
-  // Handle order selection
-  const handleOrderToggle = useCallback((orderId: string) => {
-    setSelectedOrders((prev) => {
-      const next = new Set(prev);
-      if (next.has(orderId)) {
-        next.delete(orderId);
-      } else {
-        next.add(orderId);
-      }
-      return next;
-    });
-  }, []);
-
   // Generate unique key for a card
   const getCardKey = useCallback(
     (orderId: string, size: string, variety: string, location: string) => {
       return `${orderId}-${size}-${variety}-${location}`;
     },
     []
+  );
+
+  // Handle order selection
+  const handleOrderToggle = useCallback(
+    (orderId: string) => {
+      setSelectedOrders((prev) => {
+        const next = new Set(prev);
+        const isCurrentlySelected = next.has(orderId);
+
+        if (isCurrentlySelected) {
+          // Unchecking: Remove from selected orders and clear all quantities for this order
+          next.delete(orderId);
+          setQuantities((prevQuantities) => {
+            const nextQuantities = new Map(prevQuantities);
+            // Remove all quantities that start with this orderId
+            for (const key of nextQuantities.keys()) {
+              if (key.startsWith(`${orderId}-`)) {
+                nextQuantities.delete(key);
+              }
+            }
+            return nextQuantities;
+          });
+        } else {
+          // Checking: Add to selected orders and set all quantities to max available
+          next.add(orderId);
+          // Find the order
+          const order = incomingOrders.find((o) => o.id === orderId);
+          if (order) {
+            setQuantities((prevQuantities) => {
+              const nextQuantities = new Map(prevQuantities);
+              // Iterate through all bag sizes and set quantities
+              for (const size of bagSizes) {
+                const sizeData = getOrderSizeData(order, size);
+                for (const data of sizeData) {
+                  const cardKey = getCardKey(orderId, size, data.variety, data.location);
+                  // Set quantity to the current available quantity (quantityCurr)
+                  nextQuantities.set(cardKey, data.quantityCurr);
+                }
+              }
+              return nextQuantities;
+            });
+          }
+        }
+        return next;
+      });
+    },
+    [incomingOrders, bagSizes, getOrderSizeData, getCardKey]
   );
 
   // Handle card click to open dialog

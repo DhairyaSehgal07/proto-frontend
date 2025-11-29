@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -12,6 +12,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { DaybookOrder } from '@/types/daybook';
 import { format } from 'date-fns';
 
@@ -66,6 +74,42 @@ export function SummarySheet({
       return () => clearTimeout(timer);
     }
   }, [open]);
+
+  // Group bags by gate pass (orderId) and then by variety using Object.groupBy()
+  const groupedBags = useMemo(() => {
+    // First group by orderId using Object.groupBy()
+    const orderGroups = Object.groupBy(selectedBags, (bag) => bag.orderId);
+
+    // Then for each order, group by variety and flatten into result array
+    const result: Array<{
+      orderId: string;
+      order: DaybookOrder;
+      variety: string;
+      bags: SelectedBag[];
+    }> = [];
+
+    // Iterate over each order group
+    Object.entries(orderGroups).forEach(([orderId, bags]) => {
+      if (!bags || bags.length === 0) return;
+
+      // Group bags by variety within this order using Object.groupBy()
+      const varietyGroups = Object.groupBy(bags, (bag) => bag.variety);
+
+      // Create an entry for each variety in this order
+      Object.entries(varietyGroups).forEach(([variety, varietyBags]) => {
+        if (!varietyBags || varietyBags.length === 0) return;
+
+        result.push({
+          orderId,
+          order: bags[0].order,
+          variety,
+          bags: varietyBags,
+        });
+      });
+    });
+
+    return result;
+  }, [selectedBags]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -145,80 +189,132 @@ export function SummarySheet({
           ) : (
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold mb-4">Selected Bags</h3>
-                <div className="space-y-4">
-                  {selectedBags.map((bag, index) => (
-                    <div
-                      key={`${bag.orderId}-${bag.size}-${bag.variety}-${bag.location}-${index}`}
-                      className="p-4 rounded-lg border bg-card"
-                    >
-                      <div className="space-y-3">
-                        {/* Order Header */}
-                        <div className="flex items-start justify-between pb-2 border-b">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground/90">
-                              Gate Pass #{bag.order.gatePassNumber}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {bag.order.createdAt
-                                ? format(new Date(bag.order.createdAt), 'MMM dd, yyyy')
-                                : 'N/A'}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-medium text-muted-foreground">Commodity</p>
-                            <p className="text-sm font-semibold text-foreground/90">
-                              {bag.order.commodity}
-                            </p>
-                          </div>
-                        </div>
+                <h3 className="text-base font-semibold mb-3">Selected Bags</h3>
+                <div className="space-y-8">
+                  {(() => {
+                    // Group by orderId to show gate pass header only once per order using Object.groupBy()
+                    const orderGroups = Object.groupBy(groupedBags, (group) => group.orderId);
 
-                        {/* Bag Details */}
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">Variety</p>
-                            <p className="font-medium text-foreground/90">{bag.variety}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">Bag Size</p>
-                            <p className="font-medium text-foreground/90">{bag.size}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">Location</p>
-                            <p className="font-medium text-foreground/90">{bag.location}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">Selected Quantity</p>
-                            <p className="font-semibold text-primary">{bag.quantity.toFixed(1)}</p>
-                          </div>
-                        </div>
+                    return Object.entries(orderGroups)
+                      .filter(([, varietyGroups]) => varietyGroups && varietyGroups.length > 0)
+                      .map(([orderId, varietyGroups]) => {
+                        // TypeScript: varietyGroups is guaranteed to be defined after filter
+                        const groups = varietyGroups!;
+                        const firstGroup = groups[0];
+                        return (
+                          <div key={orderId} className="rounded-lg border bg-card overflow-hidden">
+                            {/* Gate Pass Header */}
+                            <div className="px-3 py-2 bg-muted/50 border-b">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground/90">
+                                    Gate Pass #{firstGroup.order.gatePassNumber}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {firstGroup.order.createdAt
+                                      ? format(new Date(firstGroup.order.createdAt), 'MMM dd, yyyy')
+                                      : 'N/A'}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs font-medium text-muted-foreground">
+                                    Commodity
+                                  </p>
+                                  <p className="text-xs font-semibold text-foreground/90">
+                                    {firstGroup.order.commodity}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
 
-                        {/* Quantity Info */}
-                        <div className="pt-2 border-t">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">Available:</span>
-                            <span className="font-medium text-foreground/80">
-                              {bag.quantityCurr.toFixed(1)} / {bag.quantityInit.toFixed(1)}
-                            </span>
+                            {/* Tables for each variety */}
+                            <div className="space-y-3">
+                              {groups.map((group, varietyIndex) => (
+                                <div key={`${orderId}-${group.variety}-${varietyIndex}`}>
+                                  {/* Variety Header */}
+                                  <div className="px-3 py-1.5 bg-muted/30 border-b">
+                                    <p className="text-xs font-semibold text-foreground/90">
+                                      Variety: {group.variety}
+                                    </p>
+                                  </div>
+
+                                  {/* Table */}
+                                  <div className="overflow-x-auto">
+                                    <Table className="table-fixed w-full">
+                                      <TableHeader>
+                                        <TableRow className="hover:bg-transparent">
+                                          <TableHead className="font-medium text-foreground/80 w-[20%] truncate px-2 py-1.5 text-xs">
+                                            Size
+                                          </TableHead>
+                                          <TableHead className="font-medium text-foreground/80 w-[20%] truncate px-2 py-1.5 text-xs">
+                                            Location
+                                          </TableHead>
+                                          <TableHead className="font-medium text-foreground/80 text-right w-[18%] px-2 py-1.5 text-xs whitespace-nowrap">
+                                            Avail
+                                          </TableHead>
+                                          <TableHead className="font-medium text-foreground/80 text-right w-[18%] px-2 py-1.5 text-xs whitespace-nowrap">
+                                            Sel
+                                          </TableHead>
+                                          <TableHead className="font-medium text-foreground/80 text-right w-[18%] px-2 py-1.5 text-xs whitespace-nowrap">
+                                            Rem
+                                          </TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {group.bags.map((bag, index) => {
+                                          const remaining = bag.quantityCurr - bag.quantity;
+                                          return (
+                                            <TableRow
+                                              key={`${bag.orderId}-${bag.size}-${bag.variety}-${bag.location}-${index}`}
+                                              className="hover:bg-muted/50"
+                                            >
+                                              <TableCell className="text-foreground/80 truncate px-2 py-1.5 text-xs">
+                                                <span className="truncate block">{bag.size}</span>
+                                              </TableCell>
+                                              <TableCell className="text-foreground/80 truncate px-2 py-1.5 text-xs">
+                                                <span className="truncate block">
+                                                  {bag.location}
+                                                </span>
+                                              </TableCell>
+                                              <TableCell className="text-right text-foreground/80 px-2 py-1.5 text-xs whitespace-nowrap">
+                                                {bag.quantityCurr.toFixed(1)}
+                                              </TableCell>
+                                              <TableCell className="text-right px-2 py-1.5 text-xs whitespace-nowrap">
+                                                <span className="font-semibold text-primary">
+                                                  {bag.quantity.toFixed(1)}
+                                                </span>
+                                              </TableCell>
+                                              <TableCell className="text-right text-foreground/80 px-2 py-1.5 text-xs whitespace-nowrap">
+                                                {remaining.toFixed(1)}
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                        );
+                      });
+                  })()}
                 </div>
               </div>
 
               {/* Total Summary */}
-              <div className="p-4 rounded-lg border bg-muted/50">
+              <div className="px-3 py-2 rounded-lg border bg-muted/50">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground/90">Total Bags Selected:</p>
-                  <p className="text-lg font-bold text-primary">
+                  <p className="text-xs font-semibold text-foreground/90">Total Bags Selected:</p>
+                  <p className="text-base font-bold text-primary">
                     {selectedBags.reduce((sum, bag) => sum + bag.quantity, 0).toFixed(1)}
                   </p>
                 </div>
-                <div className="mt-2 pt-2 border-t">
+                <div className="mt-1.5 pt-1.5 border-t">
                   <p className="text-xs text-muted-foreground">
                     {selectedBags.length} unique bag{selectedBags.length !== 1 ? 's' : ''} selected
+                    across {groupedBags.length} gate pass{groupedBags.length !== 1 ? 'es' : ''}
                   </p>
                 </div>
               </div>
