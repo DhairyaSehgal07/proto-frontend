@@ -2,9 +2,8 @@
 
 import { FarmerSearch, DatePicker } from '@/components/forms';
 import { VarietyEntry } from '@/components/forms/variety-entry';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { IncomingOrderSummarySheet } from './summary-sheet';
 import {
   Card,
   CardHeader,
@@ -61,10 +60,10 @@ interface SubmittedFormData {
 }
 
 export default function IncomingOrderPage() {
-  const [activeStep, setActiveStep] = useState(0);
   const [submittedData, setSubmittedData] = useState<SubmittedFormData | null>(null);
   const [isNullVoucher, setIsNullVoucher] = useState(false);
   const [showNullVoucherDialog, setShowNullVoucherDialog] = useState(false);
+  const [summarySheetOpen, setSummarySheetOpen] = useState(false);
   const [selectedCommodity, setSelectedCommodity] = useState<string>('');
   const [farmerStorageLinkId, setFarmerStorageLinkId] = useState<string>('');
   const remarksRef = useRef<HTMLTextAreaElement>(null);
@@ -257,9 +256,9 @@ export default function IncomingOrderPage() {
       dateInput.value = '';
     }
 
-    // Set null voucher mode and navigate to Summary tab
+    // Set null voucher mode and open summary sheet
     setIsNullVoucher(true);
-    setActiveStep(1);
+    setSummarySheetOpen(true);
     setShowNullVoucherDialog(false);
   }, [sizes, farmerStorageLinkId, selectedCommodity]);
 
@@ -388,7 +387,7 @@ export default function IncomingOrderPage() {
         setSelectedCommodity('');
         setFarmerStorageLinkId('');
         setIsNullVoucher(false);
-        setActiveStep(0);
+        setSummarySheetOpen(false);
         if (remarksRef.current) {
           remarksRef.current.value = '';
         }
@@ -412,12 +411,12 @@ export default function IncomingOrderPage() {
     return farmersQuery.data?.data.find((f) => f.id === farmerStorageLinkId) ?? null;
   }, [farmerStorageLinkId, farmersQuery.data?.data]);
 
-  // Get date value from DatePicker input (only when on summary step)
+  // Get date value from DatePicker input
   const orderDate = useMemo(() => {
-    if (activeStep !== 1 || typeof document === 'undefined') return '';
+    if (typeof document === 'undefined') return '';
     const dateInput = document.getElementById('date') as HTMLInputElement;
     return dateInput?.value || '';
-  }, [activeStep]);
+  }, [summarySheetOpen]);
 
   // Calculate total quantities for each variety
   const varietyTotals = useMemo(() => {
@@ -441,358 +440,161 @@ export default function IncomingOrderPage() {
     return varietyTotals.reduce((sum, v) => sum + v.total, 0);
   }, [varietyTotals]);
 
-  const steps = [
-    {
-      title: 'Info',
-      description: 'Farmer details, varieties, quantities and location information.',
-      content: (
-        <div className={cn('space-y-8', isNullVoucher && 'pointer-events-none opacity-50')}>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Select or add a farmer to start creating an incoming order.
-              </p>
-              <div className="space-y-3">
-                <Label htmlFor="farmer-search" className="text-base font-medium">
-                  Select Farmer
-                </Label>
-                <FarmerSearch
-                  onSelect={(id) => {
-                    setFarmerStorageLinkId(id);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <CommoditySelector onSelect={handleCommodityChange} disabled={isNullVoucher} />
-          <DatePicker />
-
-          {/* Varieties Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-base font-medium">Varieties</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Add one or more varieties with their quantities and locations
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddVariety}
-                className="gap-2"
-                disabled={isNullVoucher}
-              >
-                <Plus className="h-4 w-4" />
-                Add Variety
-              </Button>
-            </div>
-            <div className="space-y-6">
-              {varieties.map((varietyData, index) => (
-                <VarietyEntry
-                  key={varietyData.id}
-                  index={index}
-                  varietyId={varietyData.id}
-                  variety={varietyData.variety}
-                  commodity={selectedCommodity}
-                  sizes={sizes}
-                  showCustomMarka={showCustomMarka}
-                  varieties={availableVarieties}
-                  onRemove={handleRemoveVariety}
-                  onVarietyChange={handleVarietyChange}
-                  onQuantityChange={handleQuantityChange}
-                  onCustomMarkaChange={handleCustomMarkaChange}
-                  onLocationChange={handleLocationChange}
-                  quantities={varietyData.quantities}
-                  customMarka={varietyData.customMarka}
-                  locations={varietyData.locations}
-                  onLastFieldEnter={() => {
-                    // Move to next step when Enter is pressed on last field of last variety
-                    if (index === varieties.length - 1) {
-                      setActiveStep(1);
-                    }
-                  }}
-                  canRemove={varieties.length > 1}
-                  disabled={isNullVoucher}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Summary',
-      description: 'Summary and additional notes.',
-      content: (
-        <div className="space-y-8">
-          {isNullVoucher && (
-            <div className="rounded-lg border border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20 p-4">
-              <div className="flex items-start gap-3">
-                <div className="shrink-0">
-                  <span className="text-yellow-600 dark:text-yellow-400 text-lg">⚠️</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                    Caution: This voucher will be marked as null. Please add remarks or notes for
-                    this voucher.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Order Summary */}
-          {!isNullVoucher && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl">Order Summary</CardTitle>
-                <CardDescription>Review the details before submitting</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Farmer Information */}
-                {selectedFarmer && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Farmer</Label>
-                    <div className="flex flex-col gap-1">
-                      <p className="text-base font-semibold">{selectedFarmer.name}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>📞 {selectedFarmer.mobileNumber}</span>
-                        {selectedFarmer.address && (
-                          <span className="truncate max-w-[300px]">
-                            📍 {selectedFarmer.address}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Order Date */}
-                {orderDate && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Order Date</Label>
-                    <p className="text-base">{orderDate}</p>
-                  </div>
-                )}
-
-                {/* Commodity */}
-                {selectedCommodity && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Commodity</Label>
-                    <p className="text-base font-semibold">{selectedCommodity}</p>
-                  </div>
-                )}
-
-                {/* Varieties and Quantities */}
-                {varietyTotals.length > 0 && (
-                  <div className="space-y-6">
-                    <Label className="text-sm font-medium text-muted-foreground">
-                      Varieties & Quantities
-                    </Label>
-                    <div className="space-y-4">
-                      {varietyTotals.map((vt, idx) => (
-                        <div
-                          key={idx}
-                          className="rounded-lg border bg-card shadow-sm overflow-hidden"
-                        >
-                          {/* Header Section */}
-                          <div className="flex items-center justify-between px-5 py-4 bg-muted/30 border-b">
-                            <h3 className="text-lg font-semibold text-foreground">{vt.variety}</h3>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-muted-foreground">
-                                Total:
-                              </span>
-                              <span className="text-lg font-bold text-primary">
-                                {vt.total.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          </div>
-                          {/* Quantities Grid */}
-                          <div className="p-5">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-3">
-                              {sizes.map((size) => {
-                                const qty = vt.quantities[size];
-                                if (!qty || qty.trim() === '') return null;
-                                return (
-                                  <div
-                                    key={size}
-                                    className="flex items-center justify-between py-2 border-b border-border/50 last:border-b-0"
-                                  >
-                                    <span className="text-sm font-medium text-muted-foreground">
-                                      {size}
-                                    </span>
-                                    <span className="text-sm font-semibold text-foreground ml-4">
-                                      {parseFloat(qty).toLocaleString('en-US', {
-                                        maximumFractionDigits: 2,
-                                      })}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Grand Total */}
-                    {varietyTotals.length > 0 && (
-                      <div className="rounded-lg border-2 border-primary/20 bg-primary/5 px-5 py-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-lg font-semibold text-foreground">
-                            Grand Total
-                          </Label>
-                          <p className="text-2xl font-bold text-primary">
-                            {grandTotal.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="space-y-3">
-            <Label htmlFor="remarks" className="text-base font-medium">
-              Add Remarks
-            </Label>
-            <Textarea
-              ref={remarksRef}
-              id="remarks"
-              placeholder="Enter any additional remarks or notes..."
-              className="min-h-[120px]"
-              onKeyDown={(e) => {
-                // Submit form when Enter is pressed (without Shift)
-                if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-            />
-          </div>
-        </div>
-      ),
-    },
-  ];
-
-  const isLastStep = activeStep === steps.length - 1;
-  const isFirstStep = activeStep === 0;
-
-  // Scroll to top when step changes
+  // Auto-focus on first input when component mounts
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeStep]);
-
-  // Auto-focus on first input when step changes
-  useEffect(() => {
-    // Small delay to ensure DOM is ready after step change
     const timer = setTimeout(() => {
-      if (activeStep === 0) {
-        // Focus on farmer search button
-        const farmerSearchButton = document.getElementById('farmer-search');
-        if (farmerSearchButton) {
-          farmerSearchButton.focus();
-        }
-      } else if (activeStep === 1) {
-        // Focus on remarks field
-        const remarksField = document.getElementById('remarks');
-        if (remarksField) {
-          remarksField.focus();
-        }
+      const farmerSearchButton = document.getElementById('farmer-search');
+      if (farmerSearchButton) {
+        farmerSearchButton.focus();
       }
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [activeStep]);
+  }, []);
 
   return (
     <div className="flex w-full max-w-3xl flex-col gap-8 mx-auto px-4">
-      <Tabs value={steps[activeStep].title}>
-        {/* ---- Step Titles ---- */}
-        <TabsList className={cn('grid w-full', `grid-cols-${steps.length}`)}>
-          {steps.map((step, i) => (
-            <TabsTrigger
-              key={step.title}
-              value={step.title}
-              className={cn(
-                activeStep === i ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-              )}
-              onClick={() => {
-                if (!isNullVoucher || i === 1) {
-                  setActiveStep(i);
-                }
-              }}
-              disabled={isNullVoucher && i === 0}
-            >
-              {step.title}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <Card>
+        <CardHeader className="pb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            {/* Left side: Order info */}
+            <div className="flex flex-col">
+              <OrderNumber
+                gatePassNumber={data?.data?.nextGatePassNumber}
+                type="Receipt"
+                name="Voucher"
+              />
+              <CardTitle className="text-2xl mt-2">Incoming Order</CardTitle>
+              <CardDescription className="text-base mt-1">
+                Farmer details, varieties, quantities and location information.
+              </CardDescription>
+            </div>
 
-        {/* ---- Step Content ---- */}
-        {steps.map((step) => (
-          <TabsContent key={step.title} value={step.title} className="mt-6">
-            <Card>
-              <CardHeader className="pb-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  {/* Left side: Order info */}
-                  <div className="flex flex-col">
-                    <OrderNumber
-                      gatePassNumber={data?.data?.nextGatePassNumber}
-                      type="Receipt"
-                      name="Voucher"
-                    />
-                    <CardTitle className="text-2xl mt-2">{step.title}</CardTitle>
-                    {step.description && (
-                      <CardDescription className="text-base mt-1">
-                        {step.description}
-                      </CardDescription>
-                    )}
-                  </div>
+            {/* Right side: Action */}
+            <Button variant="secondary" onClick={() => setShowNullVoucherDialog(true)}>
+              Create Null Voucher
+            </Button>
+          </div>
+        </CardHeader>
 
-                  {/* Right side: Action */}
-                  {activeStep === 0 && (
-                    <Button variant="secondary" onClick={() => setShowNullVoucherDialog(true)}>
-                      Create Null Voucher
-                    </Button>
-                  )}
+        <CardContent className="px-6 pb-6">
+          <div className={cn('space-y-8', isNullVoucher && 'pointer-events-none opacity-50')}>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select or add a farmer to start creating an incoming order.
+                </p>
+                <div className="space-y-3">
+                  <Label htmlFor="farmer-search" className="text-base font-medium">
+                    Select Farmer
+                  </Label>
+                  <FarmerSearch
+                    onSelect={(id) => {
+                      setFarmerStorageLinkId(id);
+                    }}
+                  />
                 </div>
-              </CardHeader>
+              </div>
+            </div>
 
-              <CardContent className="px-6 pb-6">{step.content}</CardContent>
+            <CommoditySelector onSelect={handleCommodityChange} disabled={isNullVoucher} />
+            <DatePicker />
 
-              <CardFooter className="flex justify-between items-center pt-6 border-t">
+            {/* Varieties Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  {!isFirstStep && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setActiveStep((s) => s - 1)}
-                      disabled={isNullVoucher}
-                    >
-                      Back
-                    </Button>
-                  )}
+                  <Label className="text-base font-medium">Varieties</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Add one or more varieties with their quantities and locations
+                  </p>
                 </div>
-                <div>
-                  {isLastStep ? (
-                    <Button onClick={handleSubmit} disabled={createIncomingOrderMutation.isPending}>
-                      {createIncomingOrderMutation.isPending ? 'Submitting...' : 'Submit'}
-                    </Button>
-                  ) : (
-                    <Button onClick={() => setActiveStep((s) => s + 1)} disabled={isNullVoucher}>
-                      Next
-                    </Button>
-                  )}
-                </div>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddVariety}
+                  className="gap-2"
+                  disabled={isNullVoucher}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Variety
+                </Button>
+              </div>
+              <div className="space-y-6">
+                {varieties.map((varietyData, index) => (
+                  <VarietyEntry
+                    key={varietyData.id}
+                    index={index}
+                    varietyId={varietyData.id}
+                    variety={varietyData.variety}
+                    commodity={selectedCommodity}
+                    sizes={sizes}
+                    showCustomMarka={showCustomMarka}
+                    varieties={availableVarieties}
+                    onRemove={handleRemoveVariety}
+                    onVarietyChange={handleVarietyChange}
+                    onQuantityChange={handleQuantityChange}
+                    onCustomMarkaChange={handleCustomMarkaChange}
+                    onLocationChange={handleLocationChange}
+                    quantities={varietyData.quantities}
+                    customMarka={varietyData.customMarka}
+                    locations={varietyData.locations}
+                    onLastFieldEnter={() => {
+                      // Open summary sheet when Enter is pressed on last field of last variety
+                      if (index === varieties.length - 1) {
+                        setSummarySheetOpen(true);
+                      }
+                    }}
+                    canRemove={varieties.length > 1}
+                    disabled={isNullVoucher}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+
+        <CardFooter className="flex justify-between items-center pt-6 border-t">
+          <div></div>
+          <div>
+            <Button onClick={() => setSummarySheetOpen(true)} disabled={isNullVoucher}>
+              Next
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+
+      {/* Display submitted data */}
+      {submittedData && (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="text-2xl">Submitted Form Data</CardTitle>
+            <CardDescription>All the details you entered:</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-muted p-4 rounded-md overflow-auto text-sm">
+              {JSON.stringify(submittedData, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Sheet */}
+      <IncomingOrderSummarySheet
+        open={summarySheetOpen}
+        onOpenChange={setSummarySheetOpen}
+        selectedFarmer={selectedFarmer}
+        orderDate={orderDate}
+        selectedCommodity={selectedCommodity}
+        varietyTotals={varietyTotals}
+        grandTotal={grandTotal}
+        sizes={sizes}
+        isNullVoucher={isNullVoucher}
+        remarksRef={remarksRef}
+        onSubmit={handleSubmit}
+        isSubmitting={createIncomingOrderMutation.isPending}
+      />
 
       {/* Display submitted data */}
       {submittedData && (
@@ -816,8 +618,8 @@ export default function IncomingOrderPage() {
             <AlertDialogTitle>Create Null Voucher?</AlertDialogTitle>
             <AlertDialogDescription>
               This will clear all form data and create a null voucher. All information fields will
-              be disabled, and you will be redirected to the Summary tab to add remarks. This action
-              cannot be undone.
+              be disabled, and you will be redirected to the Summary sheet to add remarks. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

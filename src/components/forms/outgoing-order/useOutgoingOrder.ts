@@ -21,6 +21,7 @@ export function useOutgoingOrder() {
   const [quantityInput, setQuantityInput] = useState<string>('');
   const [maxQuantity, setMaxQuantity] = useState<number>(0);
   const [quantityError, setQuantityError] = useState<string>('');
+  const [summarySheetOpen, setSummarySheetOpen] = useState(false);
   const remarksRef = useRef<HTMLTextAreaElement>(null);
   const autoSelectedCommodityRef = useRef<string>('');
   const { coldStorage } = useStore();
@@ -324,6 +325,50 @@ export function useOutgoingOrder() {
     setMaxQuantity(0);
   }, []);
 
+  // Compute selected bags from quantities map
+  const selectedBags = useMemo(() => {
+    const bags: Array<{
+      orderId: string;
+      order: DaybookOrder;
+      size: string;
+      variety: string;
+      location: string;
+      quantity: number;
+      quantityCurr: number;
+      quantityInit: number;
+    }> = [];
+
+    quantities.forEach((quantity, cardKey) => {
+      // Parse cardKey: orderId-size-variety-location
+      // Location format is "chamber/floor/row" which may contain slashes
+      // We need to find the orderId first, then match the rest
+      for (const order of incomingOrders) {
+        // Try each bag size
+        for (const size of bagSizes) {
+          const orderSizeData = getOrderSizeData(order, size);
+          for (const data of orderSizeData) {
+            const testKey = getCardKey(order.id, size, data.variety, data.location);
+            if (testKey === cardKey) {
+              bags.push({
+                orderId: order.id,
+                order,
+                size,
+                variety: data.variety,
+                location: data.location,
+                quantity,
+                quantityCurr: data.quantityCurr,
+                quantityInit: data.quantityInit,
+              });
+              return; // Found match, move to next cardKey
+            }
+          }
+        }
+      }
+    });
+
+    return bags;
+  }, [quantities, incomingOrders, bagSizes, getOrderSizeData, getCardKey]);
+
   // Handle farmer selection
   const handleFarmerSelect = useCallback((id: string) => {
     setFarmerStorageLinkId(id);
@@ -405,6 +450,8 @@ export function useOutgoingOrder() {
     quantityInput,
     maxQuantity,
     quantityError,
+    summarySheetOpen,
+    setSummarySheetOpen,
     remarksRef,
     autoSelectedCommodityRef,
 
@@ -420,6 +467,7 @@ export function useOutgoingOrder() {
     incomingOrders,
     bagSizes,
     visibleBagSizes,
+    selectedBags,
 
     // Handlers
     handleCommodityChange,
