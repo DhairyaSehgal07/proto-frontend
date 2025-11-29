@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useStore } from '@/store';
-import { Commodity, CreateIncomingOrderInput } from '@/types/incomingOrder';
+import { Commodity } from '@/types/incomingOrder';
+import { CreateOutgoingOrderInput } from '@/types/outgoingOrder';
 import { useGetGatePassNumber } from '@/services/base/incoming-orders/useGatePassNumber';
-import { useCreateIncomingOrder } from '@/services/base/incoming-orders/useCreateIncomingOrder';
+import { useCreateOutgoingOrder } from '@/services/base/outgoing-orders/useCreateOutgoingOrder';
 import { useGetAllFarmers } from '@/services/base/store-admin/functions/useGetAllFarmers';
 import { useGetOrdersOfFarmer } from '@/services/base/store-admin/functions/useGetOrdersOfFarmer';
 import { DaybookOrder } from '@/types/daybook';
@@ -27,7 +28,7 @@ export function useOutgoingOrder() {
   const { coldStorage } = useStore();
 
   const { data } = useGetGatePassNumber((selectedCommodity as Commodity) || undefined, 'outgoing');
-  const createIncomingOrderMutation = useCreateIncomingOrder();
+  const createOutgoingOrderMutation = useCreateOutgoingOrder();
   const farmersQuery = useGetAllFarmers();
   const farmerOrdersQuery = useGetOrdersOfFarmer({
     farmerStorageLinkId,
@@ -431,27 +432,113 @@ export function useOutgoingOrder() {
       return;
     }
 
-    if (!selectedVariety) {
-      toast.error('Please select a variety.');
+    if (selectedBags.length === 0) {
+      toast.error('Please select at least one bag.');
       return;
     }
 
     const remarks = remarksRef.current?.value || null;
 
-    const payload: CreateIncomingOrderInput = {
+    // Validate all bags have valid locationIds before building payload
+    for (const bag of selectedBags) {
+      const order = bag.order;
+      const variety = order.varieties.find((v) => v.name === bag.variety);
+
+      if (!variety) {
+        toast.error(`Could not find variety ${bag.variety} in order. Please try again.`);
+        return;
+      }
+
+      // Parse location string "chamber/floor/row" to match with bagSize
+      const [chamber, floor, row] = bag.location.split('/');
+      const bagSize = variety.bagSizes.find(
+        (bs) =>
+          bs.name === bag.size &&
+          bs.chamber === chamber &&
+          bs.floor === floor &&
+          bs.row === row &&
+          bs.quantityCurr === bag.quantityCurr
+      );
+
+      if (!bagSize || !bagSize.locationId) {
+        toast.error(
+          `Could not find locationId for ${bag.size} at ${bag.location}. Please try again.`
+        );
+        return;
+      }
+    }
+
+    // Group selected bags by variety
+    const varietyMap = new Map<string, typeof selectedBags>();
+    selectedBags.forEach((bag) => {
+      if (!varietyMap.has(bag.variety)) {
+        varietyMap.set(bag.variety, []);
+      }
+      varietyMap.get(bag.variety)!.push(bag);
+    });
+
+    // Build varieties array - grouped by variety name
+    // Structure: [{ name: "Variety Name", bagSizes: [...] }]
+    const varieties = Array.from(varietyMap.entries()).map(([varietyName, bags]) => {
+      // Map each selected bag to the bagSize structure for the API
+      const bagSizes = bags.map((bag) => {
+        // Find the matching bagSize from the order to get locationId and approxWeight
+        const order = bag.order;
+        const variety = order.varieties.find((v) => v.name === bag.variety)!;
+
+        // Parse location string "chamber/floor/row" to match with bagSize
+        const [chamber, floor, row] = bag.location.split('/');
+        const bagSize = variety.bagSizes.find(
+          (bs) =>
+            bs.name === bag.size &&
+            bs.chamber === chamber &&
+            bs.floor === floor &&
+            bs.row === row &&
+            bs.quantityCurr === bag.quantityCurr
+        )!;
+
+        // quantityBefore: original available quantity (quantityCurr from the order)
+        const quantityBefore = bag.quantityCurr;
+        // quantityRemoved: the value entered by the user
+        const quantityRemoved = bag.quantity;
+        // quantityAfter: remaining quantity after removal
+        const quantityAfter = quantityBefore - quantityRemoved;
+
+        // Build bagSize object matching the API structure
+        return {
+          incomingOrderId: bag.orderId, // The incoming order ID
+          varietyName: bag.variety, // Variety name (also in parent variety object)
+          name: bag.size, // Bag size name (e.g., "50kg")
+          locationId: bagSize.locationId, // Location ID from the order
+          quantityBefore, // Original available quantity
+          quantityRemoved, // Quantity being removed (user input)
+          quantityAfter, // Remaining quantity
+          approxWeight: bagSize.approxWeight ?? 0, // Approximate weight (0 if not available)
+        };
+      });
+
+      return {
+        name: varietyName, // Variety name
+        bagSizes, // Array of bag sizes for this variety
+      };
+    });
+
+    const payload: CreateOutgoingOrderInput = {
       farmerStorageLinkId,
       commodity: selectedCommodity as Commodity,
       gatePassNumber,
+      gatePassType: 'DELIVERY',
       remarks: remarks?.trim() || null,
-      varieties: [],
+      varieties,
     };
 
-    createIncomingOrderMutation.mutate(payload, {
+    createOutgoingOrderMutation.mutate(payload, {
       onSuccess: () => {
         setSelectedCommodity('');
         setFarmerStorageLinkId('');
         setSelectedVariety('');
         setSelectedOrders(new Set());
+        setQuantities(new Map());
         setActiveStep(0);
         if (remarksRef.current) {
           remarksRef.current.value = '';
@@ -461,10 +548,10 @@ export function useOutgoingOrder() {
   }, [
     farmerStorageLinkId,
     selectedCommodity,
-    selectedVariety,
+    selectedBags,
     data?.data?.nextGatePassNumber,
     remarksRef,
-    createIncomingOrderMutation,
+    createOutgoingOrderMutation,
   ]);
 
   return {
@@ -491,7 +578,7 @@ export function useOutgoingOrder() {
 
     // Data
     data,
-    createIncomingOrderMutation,
+    createOutgoingOrderMutation,
     farmersQuery,
     farmerOrdersQuery,
     availableCommodities,

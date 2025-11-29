@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.7.0](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.6.0...v0.7.0) (2025-11-29)
+
+### Features
+
+- implement outgoing order form with bag selection and quantity management
+- add outgoing order types and API integration
+- enhance summary sheet for outgoing orders with improved grouping and validation
+- add useCreateOutgoingOrder hook for outgoing order creation
+
 ## [0.6.0](https://github.com/DhairyaSehgal07/proto-frontend/compare/v0.5.1...v0.6.0) (2025-11-28)
 
 ### Features

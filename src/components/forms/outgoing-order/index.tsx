@@ -38,7 +38,7 @@ export default function OutgoingOrderPage() {
 
     // Data
     data,
-    createIncomingOrderMutation,
+    createOutgoingOrderMutation,
     farmerOrdersQuery,
     availableCommodities,
     availableVarieties,
@@ -152,7 +152,7 @@ export default function OutgoingOrderPage() {
         selectedVariety={selectedVariety}
         remarksRef={remarksRef}
         onSubmit={handleSubmit}
-        isSubmitting={createIncomingOrderMutation.isPending}
+        isSubmitting={createOutgoingOrderMutation.isPending}
       />
     </div>
   );
