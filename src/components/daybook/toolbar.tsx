@@ -7,7 +7,7 @@ import ActionButtons from './action-buttons';
 import type { ColdStoragePreferences } from '@/types/coldStorage';
 
 interface ToolbarProps {
-  totalOrders: number | null;
+  total: number | null;
   searchQuery: string;
   orderFilter: string;
   sortFilter: string;
@@ -21,7 +21,7 @@ interface ToolbarProps {
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
-  totalOrders,
+  total,
   searchQuery,
   orderFilter,
   sortFilter,
@@ -42,7 +42,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <div className="h-4 w-4 rounded-sm bg-primary"></div>
             </div>
             <div>
-              <span className="text-xl sm:text-2xl font-bold text-foreground">{totalOrders}</span>
+              <span className="text-xl sm:text-2xl font-bold text-foreground">{total}</span>
               <span className="ml-2 text-sm sm:text-base text-foreground">orders</span>
             </div>
           </div>

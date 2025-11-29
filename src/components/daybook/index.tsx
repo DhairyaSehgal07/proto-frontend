@@ -119,7 +119,7 @@ export default function DaybookPage() {
   return (
     <div className="p-4">
       <Toolbar
-        totalOrders={totalOrders}
+        total={totalOrders}
         searchQuery={searchQuery}
         orderFilter={orderFilter}
         sortFilter={sortFilter}
